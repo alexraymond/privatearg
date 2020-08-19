@@ -2,6 +2,7 @@ import subprocess
 import string
 import re
 import random
+import copy
 
 
 from base_culture import Culture
@@ -11,16 +12,18 @@ from argument import Argument, PrivateArgument, ArgumentationFramework
 
 class RandomCulture(Culture):
     num_properties = 100
-    num_args = 7
+    num_args = 50
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
         super().__init__()
         self.name = "Sample"
         self.properties = {}
+        self.bw_framework = None
 
         self.create_random_properties()
         self.create_arguments()
         self.define_attacks()
+        self.generate_bw_framework()
 
     def create_random_properties(self):
         for i in range(0, self.num_properties):
@@ -63,7 +66,7 @@ class RandomCulture(Culture):
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = 12
+        num_attacks = 150
         for i in range(num_attacks):
             a = b = 0
             while a == b:  # Avoid self-attacks.
@@ -75,6 +78,39 @@ class RandomCulture(Culture):
                     continue
 
             self.argumentation_framework.add_attack(a, b)
+
+    def generate_bw_framework(self):
+        """
+        This function generates and populates a black-and-white framework (forced bipartition) from an existing culture.
+        A black-and-white framework is built with the following rules:
+        1. Every argument is represented by 2 nodes, black and white.
+        2. Every attack between arguments is reconstructed between nodes of different colours.
+        :return: A flat black-and-white framework.
+        """
+        self.bw_framework = ArgumentationFramework()
+        for argument in self.argumentation_framework.arguments():
+            # Even indices for black, odd for white.
+            black_argument = PrivateArgument(arg_id = argument.id() * 2,
+                                             descriptive_text = "b" + str(argument.id()),
+                                             privacy_cost = argument.privacy_cost)
+            black_argument.set_verifier(argument.verifier())
+            white_argument = PrivateArgument(arg_id = argument.id() * 2 + 1,
+                                             descriptive_text = "w" + str(argument.id()),
+                                             privacy_cost = argument.privacy_cost)
+            white_argument.set_verifier(argument.verifier())
+            self.bw_framework.add_arguments([black_argument, white_argument])
+
+        for attacker_id, attacked_set in self.argumentation_framework.attacks().items():
+            black_attacker_id = self.bw_framework.argument(attacker_id * 2).id()
+            white_attacker_id = self.bw_framework.argument(attacker_id * 2 + 1).id()
+
+            for attacked_id in attacked_set:
+                black_attacked_id = self.bw_framework.argument(attacked_id * 2).id()
+                white_attacked_id = self.bw_framework.argument(attacked_id * 2 + 1).id()
+                self.bw_framework.add_attack(black_attacker_id, white_attacked_id)
+                self.bw_framework.add_attack(white_attacker_id, black_attacked_id)
+
+
 
 # culture = RandomCulture()
 # with open('sample.af',  'w') as file:

@@ -34,6 +34,9 @@ class Argument:
     def set_verifier(self, generator):
         self.__verifier = generator
 
+    def verifier(self):
+        return self.__verifier
+
     def verify(self, me, they):
         if self.__verifier is not None:
             return self.__verifier(me, they)
@@ -54,6 +57,12 @@ class ArgumentationFramework:
     def add_arguments(self, arguments: list):
         for arg in arguments:
             self.add_argument(arg)
+
+    def arguments(self):
+        return self.__arguments.values()
+
+    def attacks(self):
+        return self.__attacks
 
     def add_argument(self, argument):
         self.__arguments[argument.id()] = argument
