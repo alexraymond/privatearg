@@ -31,8 +31,9 @@ class Argument:
             return
         self.__framework.add_attack(self.__arg_id, attacked_id)
 
-    def set_verifier(self, generator):
-        self.__verifier = generator
+    def set_verifier(self, verifier):
+        self.__verifier = verifier
+        pass
 
     def verifier(self):
         return self.__verifier
@@ -63,6 +64,15 @@ class ArgumentationFramework:
 
     def attacks(self):
         return self.__attacks
+
+    def remove_argument(self, argument_id):
+        if argument_id in self.__arguments.keys():
+            del self.__arguments[argument_id]
+        if argument_id in self.__attacks.keys():
+            del self.__attacks[argument_id]
+        for attacked_set in self.__attacked_by.values():
+            if argument_id in attacked_set:
+                attacked_set.remove(argument_id)
 
     def add_argument(self, argument):
         self.__arguments[argument.id()] = argument

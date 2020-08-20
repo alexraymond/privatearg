@@ -1,3 +1,6 @@
+import subprocess
+import string
+import re
 import random
 import copy
 import scipy.stats as stats
@@ -6,11 +9,11 @@ from enum import Enum
 from private_culture import RandomCulture
 
 class Agent:
-    max_privacy_budget = 20
-    def __init__(self, id):
+    def __init__(self, id, max_privacy_budget = 10):
         self.id = id
         self.properties = {}
         self.culture = None
+        self.max_privacy_budget = max_privacy_budget
         self.privacy_budget = self.max_privacy_budget
         self.argued_with = []
         self.unfair_perception_score = 0
@@ -38,20 +41,19 @@ class ArgumentationStrategy(Enum):
     ALL_ARGS = 5
 
 class AgentQueue:
-
-    def __init__(self, strategy: ArgumentationStrategy, size = 30):
+    def __init__(self, strategy: ArgumentationStrategy, size = 30, privacy_budget = 10):
         self.queue = []
         self.size = size
         self.culture = RandomCulture()
-        self.init_queue()
+        self.init_queue(privacy_budget)
         self.strategy = strategy
 
     def set_strategy(self, strategy):
         self.strategy = strategy
 
-    def init_queue(self):
+    def init_queue(self, privacy_budget):
         for i in range(self.size):
-            new_agent = Agent(i)
+            new_agent = Agent(i, max_privacy_budget=privacy_budget)
             new_agent.set_culture(self.culture)
             self.queue.append(new_agent)
 
@@ -111,6 +113,76 @@ class AgentQueue:
                         stable_queue = False
                     logging.debug(self.queue_string())
 
+    def create_bw_framework(self, defender, challenger):
+        """
+        Prunes unverified arguments out of a black-and-white framework.
+        :param defender: Agent representing black arguments.
+        :param challenger: Agent representing white arguments.
+        :return: Black-and-white framework with unverified arguments removed.
+        """
+        bw_framework = copy.deepcopy(self.culture.raw_bw_framework)
+
+        # Delete defender's motion since challenger always proposes motion.
+        bw_framework.remove_argument(0)
+
+        black_unverified = []
+        white_unverified = []
+        for argument_obj in self.culture.argumentation_framework.arguments():
+            if not argument_obj.verify(defender, challenger):
+                # Unverified by black.
+                black_unverified.append(argument_obj.id())
+            if not argument_obj.verify(challenger, defender):
+                # Unverified by white.
+                white_unverified.append(argument_obj.id())
+
+        for argument_id in black_unverified:
+            black_id = argument_id * 2
+            bw_framework.remove_argument(black_id)
+
+        for argument_id in white_unverified:
+            white_id = argument_id * 2 + 1
+            bw_framework.remove_argument(white_id)
+
+        return bw_framework
+
+    def rank_bw_arguments_occurrence(self, bw_framework, extension="conflictfree"):
+        """
+        Calls ConArg as an external process to compute extensions.
+        Returns a normalised "argument strength" value denoted by occurrences/num_extensions.
+        :param bw_framework: The black-and-white framework.
+        :param extension: The type of extension to be considered.
+        :return: Argument strengths as percentage of occurrence.
+        """
+        with open('sample.af',  'w') as file:
+            file.write(bw_framework.to_aspartix())
+
+        # subprocess.run(["conarg_x64/conarg2", "-w dung", "-e admissible", "-c 4", "sample.af"])
+        result = subprocess.run(["conarg_x64/conarg2", "-w dung", "-e " + extension, "sample.af"],
+                                 capture_output=True, text=True)
+        result_string = result.stdout
+        p = re.compile(r'\"[ *\d+]*\S\"')
+        match = re.findall(r'\"[ *\d+]*\S\"', result_string)
+        num_args = len(bw_framework.arguments())
+        occurrences = {}
+        for argument_obj in bw_framework.arguments():
+            occurrences[argument_obj.id()] = 0
+        for m in match:
+            m = m.replace("\"", "")
+            for argument_obj in bw_framework.arguments():
+                arg_id = argument_obj.id()
+                if str(arg_id) in m:
+                    occurrences[arg_id] += 1
+        num_extensions = len(match)
+
+        # sorted_occurrences = {id: rank for id, rank in sorted(occurrences.items(),
+        #                                                       key = lambda item: item[1],
+        #                                                       reverse = True)}
+
+        argument_strength = {}
+        for id, count in occurrences.items():
+            argument_strength[id] = count / num_extensions
+
+        return argument_strength
 
     def interact_pair(self, defender: Agent, challenger: Agent):
         """
@@ -126,8 +198,8 @@ class AgentQueue:
         logging.debug("#####################")
         logging.debug("Agent {} (defender) vs Agent {} (challenger)".format(defender.id, challenger.id))
 
-        # Defender = black. Challenger = white.
-        # bw_framework = copy.deepcopy(self.culture.bw_framework)
+        # Black = defender. White = challenger.
+        bw_framework = self.create_bw_framework(defender, challenger)
 
         defender.argued_with.append(challenger)
         challenger.argued_with.append(defender)
@@ -227,7 +299,21 @@ class AgentQueue:
                 privacy_budget[player] -= cheaper_argument_obj.privacy_cost
 
             elif self.strategy == ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE:
-
+                argument_strength = self.rank_bw_arguments_occurrence(bw_framework)
+                argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
+                player_is_defender = (player == defender)
+                rebuttal_id = -1
+                for bw_argument_id in argument_desc_rank:
+                    if player_is_defender: # Black agent. Only even arguments are considered.
+                        if bw_argument_id % 2 == 0 and bw_argument_id in affordable_argument_ids:
+                            break
+                    else: # White agent. Only odd arguments are considered.
+                        if bw_argument_id % 2 and bw_argument_id in affordable_argument_ids:
+                            break
+                # Convert bw id to normal id.
+                rebuttal_id = int(bw_argument_id / 2)
+                rebuttal_obj = self.culture.argumentation_framework.argument(rebuttal_id)
+                privacy_budget[player] -= rebuttal_obj.privacy_cost
 
             elif self.strategy == ArgumentationStrategy.ALL_ARGS:
                 # Use all arguments as possible.
@@ -243,56 +329,58 @@ class AgentQueue:
 
         return winner == defender
 
-base_queue = AgentQueue(ArgumentationStrategy.RANDOM_CHOICE_WITH_PRIVACY)
-base_str = base_queue.culture.argumentation_framework.to_aspartix()
-bw_str = base_queue.culture.bw_framework.to_aspartix()
-logging.debug(base_str)
-# print(bw_str)
-
-
-
-logging.debug("\n\n ATTEMPT 1 \n\n")
-q1 = copy.deepcopy(base_queue)
-q1.set_strategy(ArgumentationStrategy.ALL_ARGS)
-q1.interact_all()
-logging.debug("\n\n ATTEMPT 2 \n\n")
-q2 = copy.deepcopy(base_queue)
-q2.interact_all()
-logging.debug("\n\n ATTEMPT 3 \n\n")
-q3 = copy.deepcopy(base_queue)
-q3.interact_all()
-logging.debug("\n\n ATTEMPT 4 \n\n")
-q4 = copy.deepcopy(base_queue)
-q4.interact_all()
-logging.debug("\n\n ATTEMPT 5 \n\n")
-q5 = copy.deepcopy(base_queue)
-q5.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
-q5.interact_all()
-logging.debug("\n\n ATTEMPT 6 \n\n")
-q6 = copy.deepcopy(base_queue)
-q6.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
-q6.interact_all()
-logging.debug("\n\n ATTEMPT 7 \n\n")
-q7 = copy.deepcopy(base_queue)
-q7.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
-q7.interact_all()
-logging.debug("\n\n ATTEMPT 8 \n\n")
-q8 = copy.deepcopy(base_queue)
-q8.set_strategy(ArgumentationStrategy.GREEDY_MIN_PRIVACY)
-q8.interact_all()
-logging.debug("\n\n ATTEMPT 9 \n\n")
-q9 = copy.deepcopy(base_queue)
-q9.set_strategy(ArgumentationStrategy.GREEDY_MIN_PRIVACY)
-q9.interact_all()
-
-print("GT: {}".format(q1.relative_queue(ground_truth=q1)))
-print("P1: {}".format(q2.relative_queue(ground_truth=q1)))
-print("P2: {}".format(q3.relative_queue(ground_truth=q1)))
-print("P3: {}".format(q4.relative_queue(ground_truth=q1)))
-print("R1: {}".format(q5.relative_queue(ground_truth=q1)))
-print("R2: {}".format(q6.relative_queue(ground_truth=q1)))
-print("R3: {}".format(q7.relative_queue(ground_truth=q1)))
-print("GREEDY: {}".format(q8.relative_queue(ground_truth=q1)))
+# base_queue = AgentQueue(ArgumentationStrategy.RANDOM_CHOICE_WITH_PRIVACY)
+# base_str = base_queue.culture.argumentation_framework.to_aspartix()
+# bw_str = base_queue.culture.raw_bw_framework.to_aspartix()
+# logging.debug(base_str)
+# # print(bw_str)
+#
+#
+#
+# logging.debug("\n\n ATTEMPT 1 \n\n")
+# q1 = copy.deepcopy(base_queue)
+# q1.set_strategy(ArgumentationStrategy.ALL_ARGS)
+# q1.interact_all()
+# logging.debug("\n\n ATTEMPT 2 \n\n")
+# q2 = copy.deepcopy(base_queue)
+# q2.interact_all()
+# logging.debug("\n\n ATTEMPT 3 \n\n")
+# q3 = copy.deepcopy(base_queue)
+# q3.interact_all()
+# logging.debug("\n\n ATTEMPT 4 \n\n")
+# q4 = copy.deepcopy(base_queue)
+# q4.interact_all()
+# logging.debug("\n\n ATTEMPT 5 \n\n")
+# q5 = copy.deepcopy(base_queue)
+# q5.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
+# q5.interact_all()
+# logging.debug("\n\n ATTEMPT 6 \n\n")
+# q6 = copy.deepcopy(base_queue)
+# q6.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
+# q6.interact_all()
+# logging.debug("\n\n ATTEMPT 7 \n\n")
+# q7 = copy.deepcopy(base_queue)
+# q7.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
+# q7.interact_all()
+# logging.debug("\n\n ATTEMPT 8 \n\n")
+# q8 = copy.deepcopy(base_queue)
+# q8.set_strategy(ArgumentationStrategy.GREEDY_MIN_PRIVACY)
+# q8.interact_all()
+# # logging.debug("\n\n ATTEMPT 9 \n\n")
+# # q9 = copy.deepcopy(base_queue)
+# # q9.set_strategy(ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE)
+# # q9.interact_all()
+#
+#
+# print("GT: {}".format(q1.relative_queue(ground_truth=q1)))
+# print("P1: {}".format(q2.relative_queue(ground_truth=q1)))
+# print("P2: {}".format(q3.relative_queue(ground_truth=q1)))
+# print("P3: {}".format(q4.relative_queue(ground_truth=q1)))
+# print("R1: {}".format(q5.relative_queue(ground_truth=q1)))
+# print("R2: {}".format(q6.relative_queue(ground_truth=q1)))
+# print("R3: {}".format(q7.relative_queue(ground_truth=q1)))
+# print("GREEDY: {}".format(q8.relative_queue(ground_truth=q1)))
+# print("COUNT: {}".format(q9.relative_queue(ground_truth=q1)))
 
 # q1_str = q1.culture.argumentation_framework.to_aspartix()
 # q2_str = q2.culture.argumentation_framework.to_aspartix()
