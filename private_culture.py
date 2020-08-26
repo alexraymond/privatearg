@@ -10,9 +10,12 @@ from functools import partial
 from argument import Argument, PrivateArgument, ArgumentationFramework
 
 
+def always_true(*args, **kwargs):
+    return True
+
 class RandomCulture(Culture):
     num_properties = 100
-    num_args = 50
+    num_args = 25
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
         super().__init__()
@@ -36,17 +39,14 @@ class RandomCulture(Culture):
         """
         args = []
 
-        def something(a, b):
-            c = a + b
-            return c
         motion = PrivateArgument(arg_id = 0,
                                  descriptive_text = "We should swap places",
                                  privacy_cost = 0)
-        motion.set_verifier(something)  # Propositional arguments are always valid.
+
+        motion.set_verifier(always_true)  # Propositional arguments are always valid.
         args.append(motion)
 
         def generate_verifier_function(idx):
-
             def verifier_prototype(idx, self_agent, other_agent):
                 return self_agent.properties[idx] > other_agent.properties[idx]
 
@@ -69,7 +69,7 @@ class RandomCulture(Culture):
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = 150
+        num_attacks = self.num_args * 3
         for i in range(num_attacks):
             a = b = 0
             while a == b:  # Avoid self-attacks.
@@ -103,13 +103,18 @@ class RandomCulture(Culture):
             white_argument.set_verifier(argument.verifier())
             self.raw_bw_framework.add_arguments([black_argument, white_argument])
 
-        for attacker_id, attacked_set in self.argumentation_framework.attacks().items():
-            black_attacker_id = self.raw_bw_framework.argument(attacker_id * 2).id()
-            white_attacker_id = self.raw_bw_framework.argument(attacker_id * 2 + 1).id()
+            # Adding mutual attacks.
+            # self.raw_bw_framework.add_attack(black_argument.id(), white_argument.id())
+            # self.raw_bw_framework.add_attack(white_argument.id(), black_argument.id())
 
+        for attacker_id, attacked_set in self.argumentation_framework.attacks().items():
+            black_attacker_id = attacker_id * 2
+            white_attacker_id = attacker_id * 2 + 1
+
+            # Reproducing previous attacks, crossing between black and white nodes.
             for attacked_id in attacked_set:
-                black_attacked_id = self.raw_bw_framework.argument(attacked_id * 2).id()
-                white_attacked_id = self.raw_bw_framework.argument(attacked_id * 2 + 1).id()
+                black_attacked_id = attacked_id * 2
+                white_attacked_id = attacked_id * 2 + 1
                 self.raw_bw_framework.add_attack(black_attacker_id, white_attacked_id)
                 self.raw_bw_framework.add_attack(white_attacker_id, black_attacked_id)
 

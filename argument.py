@@ -4,8 +4,8 @@ class Argument:
         self.__arg_id = arg_id
         self.__descriptive_text = descriptive_text
         self.__framework = None
-        self.__evidence = []
-        self.__verifier = None
+        self.evidence = []
+        self.verifier_function = None
 
     def id(self):
         return self.__arg_id
@@ -14,7 +14,7 @@ class Argument:
         self.__framework = framework
 
     def add_evidence(self, evidence):
-        self.__evidence.append(evidence)
+        self.evidence.append(evidence)
 
     def descriptive_text(self):
         return self.__descriptive_text
@@ -32,15 +32,15 @@ class Argument:
         self.__framework.add_attack(self.__arg_id, attacked_id)
 
     def set_verifier(self, verifier):
-        self.__verifier = verifier
+        self.verifier_function = verifier
         pass
 
     def verifier(self):
-        return self.__verifier
+        return self.verifier_function
 
     def verify(self, me, they):
-        if self.__verifier is not None:
-            return self.__verifier(me, they)
+        if self.verifier_function is not None:
+            return self.verifier_function(me, they)
 
 
 class PrivateArgument(Argument):
@@ -70,9 +70,12 @@ class ArgumentationFramework:
             del self.__arguments[argument_id]
         if argument_id in self.__attacks.keys():
             del self.__attacks[argument_id]
-        for attacked_set in self.__attacked_by.values():
+        for attacked_set in self.__attacks.values():
             if argument_id in attacked_set:
                 attacked_set.remove(argument_id)
+        for attacker_set in self.__attacked_by.values():
+            if argument_id in attacker_set:
+                attacker_set.remove(argument_id)
 
     def add_argument(self, argument):
         self.__arguments[argument.id()] = argument

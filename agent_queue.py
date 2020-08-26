@@ -5,6 +5,7 @@ import random
 import copy
 import scipy.stats as stats
 import logging, sys
+import numpy as np
 from enum import Enum
 from private_culture import RandomCulture
 
@@ -145,7 +146,7 @@ class AgentQueue:
 
         return bw_framework
 
-    def rank_bw_arguments_occurrence(self, bw_framework, extension="conflictfree"):
+    def rank_bw_arguments_occurrence(self, bw_framework, extension="admissible"):
         """
         Calls ConArg as an external process to compute extensions.
         Returns a normalised "argument strength" value denoted by occurrences/num_extensions.
@@ -198,8 +199,9 @@ class AgentQueue:
         logging.debug("#####################")
         logging.debug("Agent {} (defender) vs Agent {} (challenger)".format(defender.id, challenger.id))
 
-        # Black = defender. White = challenger.
-        bw_framework = self.create_bw_framework(defender, challenger)
+        if self.strategy == ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE:
+            # Black = defender. White = challenger.
+            bw_framework = self.create_bw_framework(defender, challenger)
 
         defender.argued_with.append(challenger)
         challenger.argued_with.append(defender)
@@ -299,20 +301,38 @@ class AgentQueue:
                 privacy_budget[player] -= cheaper_argument_obj.privacy_cost
 
             elif self.strategy == ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE:
+                if not affordable_argument_ids:
+                    game_over = True
+                    winner = opponent
+                    player.unfair_perception_score += 1
+                    break
                 argument_strength = self.rank_bw_arguments_occurrence(bw_framework)
+                min_strength = min(argument_strength.values())
+                max_strength = max(argument_strength.values())
+                strength_per_cost = {}
+                for arg_id, strength in argument_strength.items():
+                    privacy_cost = bw_framework.argument(arg_id).privacy_cost
+                    if privacy_cost == 0:
+                        privacy_cost = 1
+                    normalised_strength = ((strength - min_strength) / (max_strength - min_strength)) * 20
+                    strength_per_cost[arg_id] = normalised_strength / privacy_cost
                 argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
+                relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
+
                 player_is_defender = (player == defender)
                 rebuttal_id = -1
-                for bw_argument_id in argument_desc_rank:
+                bw_argument_id = -1
+                for bw_argument_id in relative_desc_rank:
                     if player_is_defender: # Black agent. Only even arguments are considered.
-                        if bw_argument_id % 2 == 0 and bw_argument_id in affordable_argument_ids:
+                        if bw_argument_id % 2 == 0 and int(bw_argument_id / 2) in affordable_argument_ids:
                             break
                     else: # White agent. Only odd arguments are considered.
-                        if bw_argument_id % 2 and bw_argument_id in affordable_argument_ids:
+                        if bw_argument_id % 2 and int(bw_argument_id / 2) in affordable_argument_ids:
                             break
                 # Convert bw id to normal id.
                 rebuttal_id = int(bw_argument_id / 2)
                 rebuttal_obj = self.culture.argumentation_framework.argument(rebuttal_id)
+                used_arguments[player].append(rebuttal_id)
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
             elif self.strategy == ArgumentationStrategy.ALL_ARGS:
