@@ -1,3 +1,6 @@
+import subprocess
+import string
+import re
 
 class Argument:
     def __init__(self, arg_id, descriptive_text):
@@ -54,6 +57,7 @@ class ArgumentationFramework:
         self.__arguments = {}
         self.__attacks = {}
         self.__attacked_by = {}
+        self.argument_strength = {}
 
     def add_arguments(self, arguments: list):
         for arg in arguments:
@@ -110,13 +114,63 @@ class ArgumentationFramework:
     def argument(self, argument_id):
         return self.__arguments[argument_id]
 
-    def to_aspartix(self):
+    def compute_rank_arguments_occurrence(self, extension="ST"):
+        """
+        Calls ConArg as an external process to compute extensions.
+        Returns a normalised "argument strength" value denoted by occurrences/num_extensions.
+        :param bw_framework: The black-and-white framework.
+        :param extension: The type of extension to be considered.
+        :return: Argument strengths as percentage of occurrence.
+        """
+        with open('sample.apx',  'w') as file:
+            file.write(self.to_aspartix_id())
+
+        # subprocess.run(["conarg_x64/conarg2", "-w dung", "-e admissible", "-c 4", "sample.apx"])
+        result = subprocess.run(["mu-toksia/mu-toksia", "-p",  "EE-" + extension, "-fo",  "apx", "-f", "sample.apx"],
+                                 capture_output=True, text=True)
+        result_string = result.stdout
+        result_string = result_string.replace("[", "")
+        result_string = result_string.replace("]", "")
+        result_string = result_string.replace("\t", "")
+        match = result_string.split("\n")
+        occurrences = {}
+        for argument_obj in self.arguments():
+            occurrences[argument_obj.id()] = 0
+        for m in match:
+            for argument_obj in self.arguments():
+                arg_id = argument_obj.id()
+                # FIXME: Finding individual digits in strings, flawed counting
+                if str(arg_id) in m.split(","):
+                    occurrences[arg_id] += 1
+        num_extensions = len(match)
+
+        argument_strength = {}
+        for id, count in occurrences.items():
+            if num_extensions == 0:
+                num_extensions = 1
+            argument_strength[id] = count / num_extensions
+
+        self.argument_strength = argument_strength
+
+    def to_aspartix_id(self):
         text = ""
         for argument in self.__arguments:
             text += "arg({}).\n".format(argument)
         for attacker in self.__attacks.keys():
             for attacked in self.__attacks[attacker]:
                 text += "att({},{}).\n".format(attacker, attacked)
+        return text
+
+    def to_aspartix_text(self):
+        text = ""
+        for argument_id in self.__arguments:
+            arg_text = self.argument(argument_id).descriptive_text()
+            text += "arg({}).\n".format(arg_text)
+        for attacker_id in self.__attacks.keys():
+            for attacked_id in self.__attacks[attacker_id]:
+                attacker_text = self.argument(attacker_id).descriptive_text()
+                attacked_text = self.argument(attacked_id).descriptive_text()
+                text += "att({},{}).\n".format(attacker_text, attacked_text)
         return text
 
 

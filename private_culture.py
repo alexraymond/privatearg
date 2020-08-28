@@ -15,7 +15,7 @@ def always_true(*args, **kwargs):
 
 class RandomCulture(Culture):
     num_properties = 100
-    num_args = 25
+    num_args = 40
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
         super().__init__()
@@ -40,7 +40,7 @@ class RandomCulture(Culture):
         args = []
 
         motion = PrivateArgument(arg_id = 0,
-                                 descriptive_text = "We should swap places",
+                                 descriptive_text = "M",
                                  privacy_cost = 0)
 
         motion.set_verifier(always_true)  # Propositional arguments are always valid.
@@ -69,7 +69,7 @@ class RandomCulture(Culture):
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = self.num_args * 3
+        num_attacks = self.num_args * 5
         for i in range(num_attacks):
             a = b = 0
             while a == b:  # Avoid self-attacks.
@@ -86,37 +86,61 @@ class RandomCulture(Culture):
         """
         This function generates and populates a black-and-white framework (forced bipartition) from an existing culture.
         A black-and-white framework is built with the following rules:
-        1. Every argument is represented by 2 nodes, black and white.
+        1. Every argument is represented by 4 nodes, black and white X hypothesis and verified.
         2. Every attack between arguments is reconstructed between nodes of different colours.
         :return: A flat black-and-white framework.
         """
         self.raw_bw_framework = ArgumentationFramework()
         for argument in self.argumentation_framework.arguments():
             # Even indices for defender, odd for challenger.
-            black_argument = PrivateArgument(arg_id = argument.id() * 2,
-                                             descriptive_text = "b" + str(argument.id()),
-                                             privacy_cost = argument.privacy_cost)
-            black_argument.set_verifier(argument.verifier())
-            white_argument = PrivateArgument(arg_id = argument.id() * 2 + 1,
-                                             descriptive_text = "w" + str(argument.id()),
-                                             privacy_cost = argument.privacy_cost)
-            white_argument.set_verifier(argument.verifier())
-            self.raw_bw_framework.add_arguments([black_argument, white_argument])
+            # Adding hypothetical arguments.
+            black_hypothesis = PrivateArgument(arg_id = argument.id() * 4,
+                                               descriptive_text = "b" + str(argument.id()),
+                                               privacy_cost = argument.privacy_cost)
+            black_hypothesis.set_verifier(always_true)
+            white_hypothesis = PrivateArgument(arg_id = argument.id() * 4 + 1,
+                                               descriptive_text = "w" + str(argument.id()),
+                                               privacy_cost = argument.privacy_cost)
+            white_hypothesis.set_verifier(always_true)
 
-            # Adding mutual attacks.
-            # self.raw_bw_framework.add_attack(black_argument.id(), white_argument.id())
-            # self.raw_bw_framework.add_attack(white_argument.id(), black_argument.id())
+            # Adding verified arguments.
+            black_verified = PrivateArgument(arg_id=argument.id() * 4 + 2,
+                                             descriptive_text="V-b" + str(argument.id()),
+                                             privacy_cost=argument.privacy_cost)
+            black_verified.set_verifier(argument.verifier())
 
+            white_verified = PrivateArgument(arg_id=argument.id() * 4 + 3,
+                                             descriptive_text="V-w" + str(argument.id()),
+                                             privacy_cost=argument.privacy_cost)
+            white_verified.set_verifier(argument.verifier())
+
+            self.raw_bw_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
+
+
+            # Adding mutual attacks between verified arguments.
+            self.raw_bw_framework.add_attack(black_verified.id(), white_verified.id())
+            self.raw_bw_framework.add_attack(white_verified.id(), black_verified.id())
+
+            # Adding attacks between immediate verified and hypothetical arguments.
+            self.raw_bw_framework.add_attack(black_verified.id(), white_hypothesis.id())
+            self.raw_bw_framework.add_attack(white_verified.id(), black_hypothesis.id())
+
+        # Adding attacks between different arguments in original framework.
+        # Each hypothesis attacks both the attacked hypothesis and verified arguments.
         for attacker_id, attacked_set in self.argumentation_framework.attacks().items():
-            black_attacker_id = attacker_id * 2
-            white_attacker_id = attacker_id * 2 + 1
+            black_hypothesis_attacker_id = attacker_id * 4
+            white_hypothesis_attacker_id = attacker_id * 4 + 1
 
             # Reproducing previous attacks, crossing between black and white nodes.
             for attacked_id in attacked_set:
-                black_attacked_id = attacked_id * 2
-                white_attacked_id = attacked_id * 2 + 1
-                self.raw_bw_framework.add_attack(black_attacker_id, white_attacked_id)
-                self.raw_bw_framework.add_attack(white_attacker_id, black_attacked_id)
+                black_hypothesis_attacked_id = attacked_id * 4
+                white_hypothesis_attacked_id = attacked_id * 4 + 1
+                black_verified_attacked_id = attacked_id * 4 + 2
+                white_verified_attacked_id = attacked_id * 4 + 3
+                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_hypothesis_attacked_id)
+                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_verified_attacked_id)
+                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_hypothesis_attacked_id)
+                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_verified_attacked_id)
 
 
 
