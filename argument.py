@@ -114,11 +114,10 @@ class ArgumentationFramework:
     def argument(self, argument_id):
         return self.__arguments[argument_id]
 
-    def compute_rank_arguments_occurrence(self, extension="ST"):
+    def compute_rank_arguments_occurrence(self, extension="PR"):
         """
         Calls ConArg as an external process to compute extensions.
         Returns a normalised "argument strength" value denoted by occurrences/num_extensions.
-        :param bw_framework: The black-and-white framework.
         :param extension: The type of extension to be considered.
         :return: Argument strengths as percentage of occurrence.
         """

@@ -36,7 +36,7 @@ class Agent:
     def has_argued_with(self, agent_id):
         return agent_id in self.argued_with
 
-class ArgumentationStrategy(Enum):
+class ArgStrategy(Enum):
     RANDOM_CHOICE_NO_PRIVACY = 1
     RANDOM_CHOICE_WITH_PRIVACY = 2
     GREEDY_MIN_PRIVACY = 3
@@ -45,7 +45,7 @@ class ArgumentationStrategy(Enum):
     ALL_ARGS = 6
 
 class AgentQueue:
-    def __init__(self, strategy: ArgumentationStrategy, size = 30, privacy_budget = 10):
+    def __init__(self, strategy: ArgStrategy, size = 30, privacy_budget = 10):
         self.queue = []
         self.size = size
         self.culture = RandomCulture()
@@ -237,7 +237,7 @@ class AgentQueue:
 
             # If there are no affordable arguments, player loses and local unfairness increases.
 
-            if self.strategy == ArgumentationStrategy.RANDOM_CHOICE_WITH_PRIVACY:
+            if self.strategy == ArgStrategy.RANDOM_CHOICE_WITH_PRIVACY:
                 if not affordable_argument_ids:
                     game_over = True
                     winner = opponent
@@ -250,13 +250,13 @@ class AgentQueue:
                 rebuttal_obj = self.bw_framework.argument(rebuttal_id)
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
-            elif self.strategy == ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY:
+            elif self.strategy == ArgStrategy.RANDOM_CHOICE_NO_PRIVACY:
                 # Random choice within verified arguments.
                 rebuttal_id = random.choice(verified_argument_ids)
                 logging.debug("Agent {} chose argument {}".format(player.id, rebuttal_id))
                 used_arguments[player].append(rebuttal_id)
 
-            elif self.strategy == ArgumentationStrategy.GREEDY_MIN_PRIVACY:
+            elif self.strategy == ArgStrategy.GREEDY_MIN_PRIVACY:
                 # FIXME: Remove duplication.
                 if not affordable_argument_ids:
                     game_over = True
@@ -272,8 +272,8 @@ class AgentQueue:
                 used_arguments[player].append(cheaper_argument_obj.id)
                 privacy_budget[player] -= cheaper_argument_obj.privacy_cost
 
-            elif self.strategy == ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE_DIRECT or \
-                 self.strategy == ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE_RELATIVE:
+            elif self.strategy == ArgStrategy.COUNT_OCCURRENCES_ADMISSIBLE_DIRECT or \
+                 self.strategy == ArgStrategy.COUNT_OCCURRENCES_ADMISSIBLE_RELATIVE:
                 if not affordable_argument_ids:
                     game_over = True
                     winner = opponent
@@ -282,6 +282,9 @@ class AgentQueue:
                 argument_strength = self.bw_framework.argument_strength
                 min_strength = min(argument_strength.values())
                 max_strength = max(argument_strength.values())
+                if min_strength == max_strength:
+                    max_strength = 2
+                    min_strength = 1
                 strength_per_cost = {}
                 for arg_id, strength in argument_strength.items():
                     privacy_cost = self.bw_framework.argument(arg_id).privacy_cost
@@ -291,7 +294,7 @@ class AgentQueue:
                     strength_per_cost[arg_id] = normalised_strength / privacy_cost
                 argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
                 relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
-                if self.strategy == ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE_DIRECT:
+                if self.strategy == ArgStrategy.COUNT_OCCURRENCES_ADMISSIBLE_DIRECT:
                     ranking = argument_desc_rank
                 else:
                     ranking = relative_desc_rank
@@ -312,7 +315,7 @@ class AgentQueue:
                 used_arguments[player].append(rebuttal_id)
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
-            elif self.strategy == ArgumentationStrategy.ALL_ARGS:
+            elif self.strategy == ArgStrategy.ALL_ARGS:
                 # Use all arguments as possible.
                 # FIXME: Not looking into budget for now.
                 logging.debug("Agent {} chose arguments {}".format(player.id, verified_argument_ids))
@@ -326,7 +329,7 @@ class AgentQueue:
 
         return winner == defender
 
-# base_queue = AgentQueue(ArgumentationStrategy.RANDOM_CHOICE_WITH_PRIVACY)
+# base_queue = AgentQueue(ArgStrategy.RANDOM_CHOICE_WITH_PRIVACY)
 # base_str = base_queue.culture.argumentation_framework.to_aspartix()
 # bw_str = base_queue.culture.raw_bw_framework.to_aspartix()
 # logging.debug(base_str)
@@ -336,7 +339,7 @@ class AgentQueue:
 #
 # logging.debug("\n\n ATTEMPT 1 \n\n")
 # q1 = copy.deepcopy(base_queue)
-# q1.set_strategy(ArgumentationStrategy.ALL_ARGS)
+# q1.set_strategy(ArgStrategy.ALL_ARGS)
 # q1.interact_all()
 # logging.debug("\n\n ATTEMPT 2 \n\n")
 # q2 = copy.deepcopy(base_queue)
@@ -349,23 +352,23 @@ class AgentQueue:
 # q4.interact_all()
 # logging.debug("\n\n ATTEMPT 5 \n\n")
 # q5 = copy.deepcopy(base_queue)
-# q5.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
+# q5.set_strategy(ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
 # q5.interact_all()
 # logging.debug("\n\n ATTEMPT 6 \n\n")
 # q6 = copy.deepcopy(base_queue)
-# q6.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
+# q6.set_strategy(ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
 # q6.interact_all()
 # logging.debug("\n\n ATTEMPT 7 \n\n")
 # q7 = copy.deepcopy(base_queue)
-# q7.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
+# q7.set_strategy(ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
 # q7.interact_all()
 # logging.debug("\n\n ATTEMPT 8 \n\n")
 # q8 = copy.deepcopy(base_queue)
-# q8.set_strategy(ArgumentationStrategy.GREEDY_MIN_PRIVACY)
+# q8.set_strategy(ArgStrategy.GREEDY_MIN_PRIVACY)
 # q8.interact_all()
 # # logging.debug("\n\n ATTEMPT 9 \n\n")
 # # q9 = copy.deepcopy(base_queue)
-# # q9.set_strategy(ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE)
+# # q9.set_strategy(ArgStrategy.COUNT_OCCURRENCES_ADMISSIBLE)
 # # q9.interact_all()
 #
 #
@@ -392,7 +395,7 @@ class AgentQueue:
 #             print("Frameworks {} and {} are different!".format(i, j))
 #         else:
 #             print("Frameworks {} and {} are the same.".format(i, j))
-# queue = AgentQueue(ArgumentationStrategy.RANDOM_CHOICE)
+# queue = AgentQueue(ArgStrategy.RANDOM_CHOICE)
 # queue2 = copy.deepcopy(queue)
 # print("Order before interactions: {}".format(queue.queue_string()))
 # queue.interact_all()

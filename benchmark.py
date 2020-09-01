@@ -3,7 +3,25 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 
-RANDOM_SAMPLES = 10
+RANDOM_SAMPLES = 20
+
+def run_test(base_queue, baseline, arg_strategy):
+    q = copy.deepcopy(base_queue)
+    q.set_strategy(arg_strategy)
+    q.interact_all()
+    text, tau, p = q.relative_queue(ground_truth=baseline)
+    return tau
+
+def run_averaged_test(base_queue, baseline, arg_strategy):
+    averaged_tau = 0
+    for i in range(RANDOM_SAMPLES):
+        q = copy.deepcopy(base_queue)
+        q.set_strategy(arg_strategy)
+        q.interact_all()
+        text, tau, p = q.relative_queue(ground_truth=baseline)
+        averaged_tau += tau / RANDOM_SAMPLES
+    return averaged_tau
+
 
 def benchmark(num_iterations, queue_size, privacy_budget):
     t0 = time.time()
@@ -15,50 +33,28 @@ def benchmark(num_iterations, queue_size, privacy_budget):
 
     for i in range(num_iterations):
         print("Iteration {} of {}".format(i, num_iterations))
-        base_queue = AgentQueue(ArgumentationStrategy.ALL_ARGS, size = queue_size, privacy_budget = privacy_budget)
+        base_queue = AgentQueue(ArgStrategy.ALL_ARGS, size = queue_size, privacy_budget = privacy_budget)
 
         baseline = copy.deepcopy(base_queue)
-        baseline.set_strategy(ArgumentationStrategy.ALL_ARGS)
+        baseline.set_strategy(ArgStrategy.ALL_ARGS)
         baseline.interact_all()
 
         # Test random with privacy
-        random_with_privacy = 0.0
-        for j in range(RANDOM_SAMPLES):
-            q = copy.deepcopy(base_queue)
-            q.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_WITH_PRIVACY)
-            q.interact_all()
-            text, tau, p = q.relative_queue(ground_truth=baseline)
-            random_with_privacy += tau / RANDOM_SAMPLES
+        random_with_privacy = run_averaged_test(base_queue, baseline, ArgStrategy.RANDOM_CHOICE_WITH_PRIVACY)
 
         # Test greedy with privacy
-        q = copy.deepcopy(base_queue)
-        q.set_strategy(ArgumentationStrategy.GREEDY_MIN_PRIVACY)
-        q.interact_all()
-        text, tau, p = q.relative_queue(ground_truth=baseline)
-        greedy_with_privacy = tau
+        greedy_with_privacy = run_test(base_queue, baseline, ArgStrategy.GREEDY_MIN_PRIVACY)
 
         # Test strategic direct with privacy
-        q1 = copy.deepcopy(base_queue)
-        q1.set_strategy(ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE_DIRECT)
-        q1.interact_all()
-        text, tau, p = q1.relative_queue(ground_truth=baseline)
-        count_occurrences_direct = tau
+        count_occurrences_direct = run_test(base_queue, baseline,
+                                            ArgStrategy.COUNT_OCCURRENCES_ADMISSIBLE_DIRECT)
 
         # Test strategic relative with privacy
-        q1 = copy.deepcopy(base_queue)
-        q1.set_strategy(ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE_RELATIVE)
-        q1.interact_all()
-        text, tau, p = q1.relative_queue(ground_truth=baseline)
-        count_occurrences_relative = tau
+        count_occurrences_relative = run_test(base_queue, baseline,
+                                              ArgStrategy.COUNT_OCCURRENCES_ADMISSIBLE_RELATIVE)
 
         # Test random without privacy
-        random_without_privacy = 0.0
-        for j in range(RANDOM_SAMPLES):
-            q = copy.deepcopy(base_queue)
-            q.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
-            q.interact_all()
-            text, tau, p = q.relative_queue(ground_truth=baseline)
-            random_without_privacy += tau / RANDOM_SAMPLES
+        random_without_privacy = run_averaged_test(base_queue, baseline, ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
 
         # Collate results.
         result_random_with_privacy.append(random_with_privacy)
@@ -83,7 +79,7 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     plt.show()
 
 
-benchmark(num_iterations = 1, queue_size = 30, privacy_budget = 20)
+benchmark(num_iterations = 50, queue_size = 30, privacy_budget = 40)
 
 
 
