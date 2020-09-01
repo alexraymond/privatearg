@@ -9,13 +9,14 @@ from base_culture import Culture
 from functools import partial
 from argument import Argument, PrivateArgument, ArgumentationFramework
 
+DEBUG_FILE = False
 
 def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_properties = 100
-    num_args = 40
+    num_args = 30
+    num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
         super().__init__()
@@ -24,13 +25,45 @@ class RandomCulture(Culture):
         self.raw_bw_framework = None
 
         self.create_random_properties()
-        self.create_arguments()
-        self.define_attacks()
+        if DEBUG_FILE:
+            self.load_framework()
+        else:
+            self.create_arguments()
+            self.define_attacks()
         self.generate_bw_framework()
 
     def create_random_properties(self):
         for i in range(0, self.num_properties):
             self.properties[i] = 0
+
+    def load_framework(self):
+        def generate_verifier_function(idx):
+            def verifier_prototype(idx, self_agent, other_agent):
+                return self_agent.properties[idx] > other_agent.properties[idx]
+
+            # idx = random.randrange(1, self.num_properties)
+            return partial(verifier_prototype, idx)
+
+        with open('sample2.apx', 'r') as file:
+            lines = file.readlines()
+            for line in lines:
+                if "arg" in line:
+                    arg_id = int(line[line.find("(")+1 : line.find(")")])
+                    new_arg = PrivateArgument(arg_id= arg_id,
+                                              descriptive_text=str(arg_id),
+                                              privacy_cost= 0 if arg_id == 0 else arg_id*4)
+                    if arg_id == 0:
+                        new_arg.set_verifier(always_true)
+                    else:
+                        new_arg.set_verifier(generate_verifier_function(idx=new_arg.id()))
+                    self.argumentation_framework.add_argument(new_arg)
+                if "att" in line:
+                    attack = line[line.find("(")+1 : line.find(")")]
+                    pair = attack.split(",")
+                    attacker = int(pair[0])
+                    attacked = int(pair[1])
+                    self.argumentation_framework.add_attack(attacker, attacked)
+
 
     def create_arguments(self):
         """
@@ -69,7 +102,8 @@ class RandomCulture(Culture):
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = self.num_args * 5
+        num_attacks = self.num_args * 3
+        # num_attacks = 12
         for i in range(num_attacks):
             a = b = 0
             while a == b:  # Avoid self-attacks.

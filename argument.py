@@ -58,6 +58,7 @@ class ArgumentationFramework:
         self.__attacks = {}
         self.__attacked_by = {}
         self.argument_strength = {}
+        self.least_attacked = []
 
     def add_arguments(self, arguments: list):
         for arg in arguments:
@@ -150,6 +151,17 @@ class ArgumentationFramework:
             argument_strength[id] = count / num_extensions
 
         self.argument_strength = argument_strength
+
+    def rank_least_attacked_arguments(self):
+        """
+        :return: List of argument ids in ascending order of attacks received.
+        """
+        rank = {}
+        for arg_id in self.__arguments:
+            rank[arg_id] = 0
+        for arg_id, attackers in self.__attacked_by.items():
+            rank[arg_id] = len(attackers)
+        self.least_attacked = sorted(rank, key=rank.get)
 
     def to_aspartix_id(self):
         text = ""
