@@ -12,9 +12,6 @@ from enum import Enum
 from private_culture import RandomCulture
 
 
-# LOG_FILENAME = 'debug2.log'
-# logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
-
 class Agent:
     def __init__(self, id, max_privacy_budget = 10):
         self.id = id
@@ -86,8 +83,8 @@ class AgentQueue:
         i = 0
         for agent in ground_truth.queue:
             base_dict[agent.id] = i
-            i += 1
             ground_truth_ids.append(i)
+            i += 1
         text = ""
         for agent in self.queue:
             text += str(base_dict[agent.id]) + " "
@@ -190,7 +187,7 @@ class AgentQueue:
 
         # Game starts with challenger agent proposing argument 1 ("We should swap places").
         used_arguments   = {defender: [], challenger: [1]}
-        last_argument = {challenger: 1}
+        last_argument = {defender: [], challenger: [1]}
         privacy_budget  = {defender: defender.privacy_budget, challenger: challenger.privacy_budget}
 
 
@@ -220,13 +217,10 @@ class AgentQueue:
             forbidden_arguments = set(all_used_arguments)
             # Cannot pick argument that is attacked by previously used argument.
             forbidden_arguments.update(self.bw_framework.arguments_attacked_by_list(all_used_arguments))
-            if self.strategy != ArgStrategy.ALL_ARGS:
-                unverified_argument_ids = self.bw_framework.arguments_that_attack(last_argument[opponent])
-            else:
-                unverified_argument_ids = self.bw_framework.arguments_that_attack_list(used_arguments[opponent])
-                # unverified_argument_ids = self.bw_framework.arguments_that_attack_list(used_arguments[opponent])
+            unverified_argument_ids = self.bw_framework.arguments_that_attack(last_argument[opponent])
             unverified_argument_ids = unverified_argument_ids.difference(forbidden_arguments)
-            logging.debug("Possible attackers to arguments {}: {}".format(used_arguments[opponent], unverified_argument_ids))
+            if self.strategy != ArgStrategy.ALL_ARGS:
+                logging.debug("Possible attackers to argument {}: {}".format(last_argument[opponent], unverified_argument_ids))
             verified_argument_ids   = []
             for argument_id in unverified_argument_ids:
                 argument_obj = self.bw_framework.argument(argument_id)
@@ -271,7 +265,7 @@ class AgentQueue:
                 # Random choice within privacy budget.
                 rebuttal_id = random.choice(affordable_argument_ids)
                 logging.debug("Agent {} randomly chose argument {}".format(player.id, rebuttal_id))
-                last_argument[player] = rebuttal_id
+                last_argument[player] = [rebuttal_id]
                 used_arguments[player].append(rebuttal_id)
                 rebuttal_obj = self.bw_framework.argument(rebuttal_id)
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
@@ -280,7 +274,7 @@ class AgentQueue:
                 # Random choice within verified arguments.
                 rebuttal_id = random.choice(verified_argument_ids)
                 logging.debug("Agent {} randomly chose argument {}".format(player.id, rebuttal_id))
-                last_argument[player] = rebuttal_id
+                last_argument[player] = [rebuttal_id]
                 used_arguments[player].append(rebuttal_id)
 
             elif self.strategy == ArgStrategy.GREEDY_MIN_PRIVACY:
@@ -299,7 +293,7 @@ class AgentQueue:
                     arg_obj = self.bw_framework.argument(arg_id)
                     if arg_obj.privacy_cost < cheaper_argument_obj.privacy_cost:
                         cheaper_argument_obj = arg_obj
-                last_argument[player] = cheaper_argument_obj.id()
+                last_argument[player] = [cheaper_argument_obj.id()]
                 logging.debug("Agent {} chose cheapest argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(cheaper_argument_obj.id())
                 privacy_budget[player] -= cheaper_argument_obj.privacy_cost
@@ -343,23 +337,36 @@ class AgentQueue:
                 # Convert bw id to normal id.
                 rebuttal_id = bw_argument_id
                 rebuttal_obj = self.bw_framework.argument(rebuttal_id)
-                last_argument[player] = rebuttal_id
+                last_argument[player] = [rebuttal_id]
                 logging.debug("Agent {} chose least attacked argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(rebuttal_id)
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
             elif self.strategy == ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY:
                 ranking = self.bw_framework.least_attacked
-                rebuttal_id = ranking[0]
-                last_argument[player] = rebuttal_id
+                bw_argument_id = -1
+                for bw_argument_id in ranking:
+                    if bw_argument_id in verified_argument_ids:
+                        break
+                rebuttal_id = bw_argument_id
+                last_argument[player] = [rebuttal_id]
                 logging.debug("Agent {} chose least attacked argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(rebuttal_id)
 
             elif self.strategy == ArgStrategy.ALL_ARGS:
                 # Use all arguments as possible.
-                # FIXME: Not looking into budget for now.
-                logging.debug("Agent {} chose arguments {}".format(player.id, verified_argument_ids))
-                used_arguments[player].extend(verified_argument_ids)
+                attacked_arguments = set(self.bw_framework.arguments_attacked_by_list(verified_argument_ids))
+                last_arguments = set(last_argument[opponent])
+                if last_arguments.issubset(attacked_arguments):
+                    logging.debug("Agent {} chose arguments {}".format(player.id, verified_argument_ids))
+                    used_arguments[player].extend(verified_argument_ids)
+                    last_argument[player] = verified_argument_ids
+                else:
+                    game_over = True
+                    winner = opponent
+                    logging.debug("Agent {} fails to attack all previous arguments!".format(player.id))
+                    logging.debug("Agent {} wins!".format(winner.id))
+                    logging.debug("Used arguments: {}".format(used_arguments[winner]))
 
             else:
                 logging.error("AgentQueue::interact_pair: No valid strategy was chosen!")

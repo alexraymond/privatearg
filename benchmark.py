@@ -3,18 +3,18 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 
-RANDOM_SAMPLES = 20
+RANDOM_SAMPLES = 10
 
 def run_test(base_queue, baseline, arg_strategy, num_samples=1):
     averaged_tau = 0
-    for i in range(RANDOM_SAMPLES):
+    for i in range(num_samples):
         q = copy.deepcopy(base_queue)
         q.set_strategy(arg_strategy)
         q.interact_all()
         text, tau, p = q.relative_queue(ground_truth=baseline)
         # if num_samples == 1:
         #     print("Relative queue {}".format(text))
-        averaged_tau += tau / RANDOM_SAMPLES
+        averaged_tau += tau / num_samples
     return averaged_tau
 
 
@@ -30,8 +30,9 @@ def benchmark(num_iterations, queue_size, privacy_budget):
         print("Iteration {} of {}".format(i, num_iterations))
         base_queue = AgentQueue(ArgStrategy.ALL_ARGS, size = queue_size, privacy_budget = privacy_budget)
 
+        logging.debug("\n*\n*\n GROUND TRUTH \n*\n*\n")
         baseline = copy.deepcopy(base_queue)
-        baseline.set_strategy(ArgStrategy.ALL_ARGS)
+        baseline.set_strategy(ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY)
         baseline.interact_all()
         # print(baseline.bw_framework.to_aspartix_text())
 
@@ -50,6 +51,7 @@ def benchmark(num_iterations, queue_size, privacy_budget):
                                             ArgStrategy.LEAST_ATTACKERS_PRIVATE)
         logging.debug("Kendall Tau value: {}".format(least_attackers_private))
 
+        logging.debug("\n*\n*\n STRATEGIC NO PRIVACY \n*\n*\n")
         # Test strategic relative with privacy
         least_attackers_no_privacy = run_test(base_queue, baseline,
                                                      ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY)
@@ -83,7 +85,7 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     plt.show()
 
 
-benchmark(num_iterations = 50, queue_size = 15, privacy_budget = 40)
+benchmark(num_iterations = 100, queue_size = 30, privacy_budget = 20)
 
 
 

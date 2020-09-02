@@ -3,13 +3,16 @@ import string
 import re
 import random
 import copy
-
+import logging, sys
 
 from base_culture import Culture
 from functools import partial
 from argument import Argument, PrivateArgument, ArgumentationFramework
 
 DEBUG_FILE = False
+if DEBUG_FILE:
+    LOG_FILENAME = 'debug2.log'
+    logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
 def always_true(*args, **kwargs):
     return True
@@ -150,8 +153,11 @@ class RandomCulture(Culture):
 
             self.raw_bw_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
 
+            # Adding mutual attacks between contradictory hypotheses.
+            self.raw_bw_framework.add_attack(black_hypothesis.id(), white_hypothesis.id())
+            self.raw_bw_framework.add_attack(white_hypothesis.id(), black_hypothesis.id())
 
-            # Adding mutual attacks between verified arguments.
+            # Adding mutual attacks between contradictory verified arguments.
             self.raw_bw_framework.add_attack(black_verified.id(), white_verified.id())
             self.raw_bw_framework.add_attack(white_verified.id(), black_verified.id())
 

@@ -94,8 +94,10 @@ class ArgumentationFramework:
         self.__attacks[attacker_id].add(attacked_id)
         self.__attacked_by[attacked_id].add(attacker_id)
 
-    def arguments_that_attack(self, argument_id):
-        return self.__attacked_by.get(argument_id, set())
+    def arguments_that_attack(self, argument):
+        if isinstance(argument, list):
+            return self.arguments_that_attack_list(argument)
+        return self.__attacked_by.get(argument, set())
 
     def arguments_that_attack_list(self, argument_list):
         result = set()
@@ -109,8 +111,10 @@ class ArgumentationFramework:
             result.update(self.arguments_attacked_by(argument_id))
         return result
 
-    def arguments_attacked_by(self, argument_id):
-        return self.__attacks.get(argument_id, set())
+    def arguments_attacked_by(self, argument):
+        if isinstance(argument, list):
+            return self.arguments_attacked_by_list(argument)
+        return self.__attacks.get(argument, set())
 
     def argument(self, argument_id):
         return self.__arguments[argument_id]
