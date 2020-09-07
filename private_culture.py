@@ -9,7 +9,7 @@ from base_culture import Culture
 from functools import partial
 from argument import Argument, PrivateArgument, ArgumentationFramework
 
-DEBUG_FILE = False
+DEBUG_FILE = True
 if DEBUG_FILE:
     LOG_FILENAME = 'debug2.log'
     logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
@@ -18,7 +18,7 @@ def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_args = 30
+    num_args = 40
     num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.

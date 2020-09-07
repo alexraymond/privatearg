@@ -55,6 +55,7 @@ class AgentQueue:
         self.init_queue(privacy_budget)
         self.strategy = strategy
         self.bw_framework = None
+        self.rate_local_unfairness = 0
 
     def set_strategy(self, strategy):
         self.strategy = strategy
@@ -107,6 +108,7 @@ class AgentQueue:
         logging.debug(self.queue_string())
         stable_queue = False
         self.bw_framework = self.create_bw_framework()
+        interaction_count = 0
         while not stable_queue:
             stable_queue = True
 
@@ -116,11 +118,18 @@ class AgentQueue:
                     if i >= len(self.queue):
                         break
                     status_quo = self.interact_pair(self.queue[i-1], self.queue[i])
+                    interaction_count += 1
                     if not status_quo:
                         # Then swap.
                         self.queue[i-1], self.queue[i] = self.queue[i], self.queue[i-1]
                         stable_queue = False
                     logging.debug(self.queue_string())
+        aggregate_local_unfairness = 0
+        for agent in self.queue:
+            aggregate_local_unfairness += agent.unfair_perception_score
+        self.rate_local_unfairness = aggregate_local_unfairness / interaction_count
+
+
 
     def create_bw_framework(self):
         """
