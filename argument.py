@@ -1,6 +1,7 @@
 import subprocess
 import string
 import re
+import graph_tool.all as gt
 
 class Argument:
     def __init__(self, arg_id, descriptive_text):
@@ -54,9 +55,9 @@ class PrivateArgument(Argument):
 
 class ArgumentationFramework:
     def __init__(self):
-        self.__arguments = {}
-        self.__attacks = {}
-        self.__attacked_by = {}
+        self.all_arguments = {}
+        self.all_attacks = {}
+        self.all_attacked_by = {}
         self.argument_strength = {}
         self.least_attacked = []
 
@@ -65,39 +66,41 @@ class ArgumentationFramework:
             self.add_argument(arg)
 
     def arguments(self):
-        return self.__arguments.values()
+        return self.all_arguments.values()
 
     def attacks(self):
-        return self.__attacks
+        return self.all_attacks
 
     def remove_argument(self, argument_id):
-        if argument_id in self.__arguments.keys():
-            del self.__arguments[argument_id]
-        if argument_id in self.__attacks.keys():
-            del self.__attacks[argument_id]
-        for attacked_set in self.__attacks.values():
+        if argument_id in self.all_arguments.keys():
+            del self.all_arguments[argument_id]
+        if argument_id in self.all_attacks.keys():
+            del self.all_attacks[argument_id]
+        if argument_id in self.all_attacked_by.keys():
+            del self.all_attacked_by[argument_id]
+        for id, attacked_set in self.all_attacks.items():
             if argument_id in attacked_set:
                 attacked_set.remove(argument_id)
-        for attacker_set in self.__attacked_by.values():
+        for id, attacker_set in self.all_attacked_by.items():
             if argument_id in attacker_set:
                 attacker_set.remove(argument_id)
 
     def add_argument(self, argument):
-        self.__arguments[argument.id()] = argument
+        self.all_arguments[argument.id()] = argument
         argument.set_framework(self)
 
     def add_attack(self, attacker_id, attacked_id):
-        if self.__attacks.get(attacker_id, None) is None:
-            self.__attacks[attacker_id] = set()
-        if self.__attacked_by.get(attacked_id, None) is None:
-            self.__attacked_by[attacked_id] = set()
-        self.__attacks[attacker_id].add(attacked_id)
-        self.__attacked_by[attacked_id].add(attacker_id)
+        if self.all_attacks.get(attacker_id, None) is None:
+            self.all_attacks[attacker_id] = set()
+        if self.all_attacked_by.get(attacked_id, None) is None:
+            self.all_attacked_by[attacked_id] = set()
+        self.all_attacks[attacker_id].add(attacked_id)
+        self.all_attacked_by[attacked_id].add(attacker_id)
 
     def arguments_that_attack(self, argument):
         if isinstance(argument, list):
             return self.arguments_that_attack_list(argument)
-        return self.__attacked_by.get(argument, set())
+        return self.all_attacked_by.get(argument, set())
 
     def arguments_that_attack_list(self, argument_list):
         result = set()
@@ -114,25 +117,19 @@ class ArgumentationFramework:
     def arguments_attacked_by(self, argument):
         if isinstance(argument, list):
             return self.arguments_attacked_by_list(argument)
-        return self.__attacks.get(argument, set())
+        return self.all_attacks.get(argument, set())
 
     def argument(self, argument_id):
-        return self.__arguments[argument_id]
+        return self.all_arguments[argument_id]
 
-    def compute_rank_arguments_occurrence(self, extension="PR"):
+    def compute_rank_arguments_occurrence(self, semantics="EE-PR"):
         """
         Calls ConArg as an external process to compute extensions.
         Returns a normalised "argument strength" value denoted by occurrences/num_extensions.
-        :param extension: The type of extension to be considered.
+        :param semantics: The type of semantics to be considered.
         :return: Argument strengths as percentage of occurrence.
         """
-        with open('sample.apx',  'w') as file:
-            file.write(self.to_aspartix_id())
-
-        # subprocess.run(["conarg_x64/conarg2", "-w dung", "-e admissible", "-c 4", "sample.apx"])
-        result = subprocess.run(["mu-toksia/mu-toksia", "-p",  "EE-" + extension, "-fo",  "apx", "-f", "sample.apx"],
-                                 capture_output=True, text=True)
-        result_string = result.stdout
+        result_string = self.run_solver(semantics)
         result_string = result_string.replace("[", "")
         result_string = result_string.replace("]", "")
         result_string = result_string.replace("\t", "")
@@ -156,37 +153,123 @@ class ArgumentationFramework:
 
         self.argument_strength = argument_strength
 
+    def run_solver(self, semantics="EE-PR", arg_str=""):
+        with open('sample.apx',  'w') as file:
+            file.write(self.to_aspartix_id())
+
+        # subprocess.run(["conarg_x64/conarg2", "-w dung", "-e admissible", "-c 4", "sample.apx"])
+        if not arg_str:
+            result = subprocess.run(["mu-toksia/mu-toksia", "-p", semantics, "-fo", "apx", "-f", "sample.apx"],
+                                    capture_output=True, text=True)
+        else:
+            result = subprocess.run(["mu-toksia/mu-toksia", "-p", semantics, "-fo", "apx", "-f", "sample.apx",
+                                     "-a", arg_str],
+                                    capture_output=True, text=True)
+
+        return result.stdout
+
     def rank_least_attacked_arguments(self):
         """
         :return: List of argument ids in ascending order of attacks received.
         """
         rank = {}
-        for arg_id in self.__arguments:
+        for arg_id in self.all_arguments:
             rank[arg_id] = 0
-        for arg_id, attackers in self.__attacked_by.items():
+        for arg_id, attackers in self.all_attacked_by.items():
             rank[arg_id] = len(attackers)
         self.least_attacked = sorted(rank, key=rank.get)
 
     def to_aspartix_id(self):
         text = ""
-        for argument in self.__arguments:
+        for argument in self.all_arguments:
             text += "arg({}).\n".format(argument)
-        for attacker in self.__attacks.keys():
-            for attacked in self.__attacks[attacker]:
+        for attacker in self.all_attacks.keys():
+            for attacked in self.all_attacks[attacker]:
                 text += "att({},{}).\n".format(attacker, attacked)
         return text
 
     def to_aspartix_text(self):
         text = ""
-        for argument_id in self.__arguments:
+        for argument_id in self.all_arguments:
             arg_text = self.argument(argument_id).descriptive_text()
             text += "arg({}).\n".format(arg_text)
-        for attacker_id in self.__attacks.keys():
-            for attacked_id in self.__attacks[attacker_id]:
+        for attacker_id in self.all_attacks.keys():
+            for attacked_id in self.all_attacks[attacker_id]:
                 attacker_text = self.argument(attacker_id).descriptive_text()
                 attacked_text = self.argument(attacked_id).descriptive_text()
                 text += "att({},{}).\n".format(attacker_text, attacked_text)
         return text
+
+    def to_graph_tool(self):
+        g = gt.Graph(directed=True)
+        ref = {}
+        g.vp.id = g.new_vertex_property("int")
+        g.vp.privacy = g.new_vertex_property("int")
+        g.vp.arg_obj = g.new_vertex_property("object")
+        for argument_id, argument_obj in self.all_arguments.items():
+            v = g.add_vertex()
+            ref[argument_id] = v
+            g.vp.id[v] = argument_id
+            g.vp.privacy[v] = argument_obj.privacy_cost
+            g.vp.arg_obj[v] = argument_obj
+        for attacker, attacked_set in self.all_attacks.items():
+            for attacked in attacked_set:
+                source = ref[attacker]
+                target = ref[attacked]
+                g.add_edge(source, target)
+        return g
+
+    def from_graph_tool(self, g):
+        self.all_arguments = {}
+        self.all_attacks = {}
+        self.all_attacked_by = {}
+        ref = {}
+        for v in g.vertices():
+            id = g.vp.id[v]
+            privacy = g.vp.privacy[v]
+            obj = g.vp.arg_obj[v]
+            new_arg = PrivateArgument(arg_id=id,
+                                      descriptive_text=obj.descriptive_text(),
+                                      privacy_cost=privacy)
+            new_arg.set_verifier(obj.verifier_function)
+            self.add_argument(new_arg)
+
+        for e in g.edges():
+            source_id = g.vp.id[e.source()]
+            target_id = g.vp.id[e.target()]
+            self.add_attack(source_id, target_id)
+
+    def make_largest_component(self):
+        g = self.to_graph_tool()
+        comp = gt.label_largest_component(g, directed=False)
+        g = gt.GraphView(g, vfilt=comp)
+        self.from_graph_tool()
+
+    def make_spanning_graph(self):
+        spanning_graph = None
+        while True:
+            self.make_largest_component()
+            g = self.to_graph_tool()
+            motion_found = gt.find_vertex(g, g.vp.id, 0)
+            if motion_found:
+                spanning_graph = gt.random_spanning_tree(g, root=motion_found[0])
+                break
+            print("Failed to find root!")
+        g = gt.GraphView(g, efilt=spanning_graph)
+        self.from_graph_tool(g)
+
+    def stats(self):
+        g = self.to_graph_tool()
+        dist, ends = gt.pseudo_diameter(g)
+        print("Diameter: {}".format(dist))
+        num_v = len(g.get_vertices())
+        num_e = len(g.get_edges())
+        print("Edges per vertex: {}".format(num_e/num_v))
+
+
+    def circuits(self):
+        g = self.to_graph_tool()
+        self.from_graph_tool(g)
 
 
 

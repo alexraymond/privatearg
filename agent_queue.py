@@ -11,7 +11,6 @@ from utils import *
 from enum import Enum
 from private_culture import RandomCulture
 
-
 class Agent:
     def __init__(self, id, max_privacy_budget = 10):
         self.id = id
@@ -48,6 +47,9 @@ class ArgStrategy(Enum):
 
 
 class AgentQueue:
+    TOTAL_YES = 0
+    TOTAL_NO = 0
+    TOTAL_BAD = 0
     def __init__(self, strategy: ArgStrategy, size = 30, privacy_budget = 10):
         self.queue = []
         self.size = size
@@ -72,6 +74,66 @@ class AgentQueue:
             text += str(agent.id) + " "
         return text
 
+    def compute_ground_truth(self):
+        """
+        Computes the ground truth by removing all unverified arguments from BW framework
+        and calculating skeptical acceptance of motion.
+        :return: Sorted ground truth.
+        """
+        ground_truth = copy.deepcopy(self)
+        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        status_quo = {}
+        for i in range(0, len(ground_truth.queue)-1):
+            for j in range(i, len(ground_truth.queue)):
+                if i == j:
+                    continue
+                defender = ground_truth.queue[i]
+                challenger = ground_truth.queue[j]
+                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+
+                to_remove = []
+                for argument_id in bw_framework.all_arguments:
+                    argument_obj = bw_framework.argument(argument_id)
+                    if is_black_arg(argument_id):
+                        verified = argument_obj.verify(defender, challenger)
+                    else:
+                        verified = argument_obj.verify(challenger, defender)
+                    if not verified:
+                        to_remove.append(argument_id)
+                        # if is_verified_arg(argument_id):
+                        #     to_remove.append(argument_id - 2)
+
+                for argument_id in to_remove:
+                    bw_framework.remove_argument(argument_id)
+
+
+                solver_result = bw_framework.run_solver(semantics="DS-PR", arg_str="1")
+                if "YES" in solver_result:
+                    # Challenger wins.
+                    attackers_of_1 = bw_framework.arguments_that_attack(1)
+                    pair = (defender.id, challenger.id)
+                    anti_pair = (challenger.id, defender.id)
+                    self.TOTAL_YES += 1
+                elif "NO" in solver_result:
+                    # Defender wins.
+                    attackers_of_1 = bw_framework.arguments_that_attack(1)
+                    pair = (challenger.id, defender.id)
+                    anti_pair = (defender.id, challenger.id)
+                    self.TOTAL_NO += 1
+                else:
+                    print("Error computing extensions")
+
+                status_quo[pair] = False
+                status_quo[anti_pair] = True
+
+        # Get queue order.
+        swaps = ground_truth.interact_all(gt_result=status_quo)
+        print("Ground truth: {}".format(ground_truth.queue_string()))
+        print("GT Swaps: {}".format(swaps))
+        print("Total yes: {}\nTotal no: {}".format(self.TOTAL_YES, self.TOTAL_NO))
+        return ground_truth
+
+
     def relative_queue(self, ground_truth):
         """
         Prints a queue with ids relative to a ground truth queue.
@@ -88,12 +150,13 @@ class AgentQueue:
             i += 1
         text = ""
         for agent in self.queue:
-            text += str(base_dict[agent.id]) + " "
+            # text += str(base_dict[agent.id]) + " "
+            text += str(agent.id) + " "
             relative_ids.append(base_dict[agent.id])
         tau, p = stats.kendalltau(ground_truth_ids, relative_ids)
         return text, tau, p
 
-    def interact_all(self):
+    def interact_all(self, gt_result = None):
         """
         Agents will interact with their neighbours.
         Considering the queue ordering, every agent will attempt to move towards index 0.
@@ -109,6 +172,7 @@ class AgentQueue:
         stable_queue = False
         self.bw_framework = self.create_bw_framework()
         interaction_count = 0
+        swaps = 0
         while not stable_queue:
             stable_queue = True
 
@@ -117,17 +181,22 @@ class AgentQueue:
                     i += scan
                     if i >= len(self.queue):
                         break
-                    status_quo = self.interact_pair(self.queue[i-1], self.queue[i])
+                    if gt_result is None:
+                        status_quo = self.interact_pair(self.queue[i-1], self.queue[i])
+                    else:
+                        status_quo = gt_result[self.queue[i-1].id, self.queue[i].id]
                     interaction_count += 1
                     if not status_quo:
                         # Then swap.
                         self.queue[i-1], self.queue[i] = self.queue[i], self.queue[i-1]
+                        swaps += 1
                         stable_queue = False
                     logging.debug(self.queue_string())
         aggregate_local_unfairness = 0
         for agent in self.queue:
             aggregate_local_unfairness += agent.unfair_perception_score
         self.rate_local_unfairness = aggregate_local_unfairness / interaction_count
+        return swaps
 
 
 
@@ -199,7 +268,6 @@ class AgentQueue:
         last_argument = {defender: [], challenger: [1]}
         privacy_budget  = {defender: defender.privacy_budget, challenger: challenger.privacy_budget}
 
-
         logging.debug("Agent {} uses argument 0".format(challenger.id))
 
         # Odd turns: defender. Even turns: challenger.
@@ -251,6 +319,7 @@ class AgentQueue:
             logging.debug("Agent {} verified arguments {}".format(player.id, verified_argument_ids))
 
             affordable_argument_ids = []
+            affordable_str = "Affordable arguments cost: "
             for argument_id in verified_argument_ids:
                 argument_obj = self.bw_framework.argument(argument_id)
                 if argument_obj.privacy_cost <= privacy_budget[player]:
@@ -259,6 +328,8 @@ class AgentQueue:
                         affordable_argument_ids.append(argument_id)
                     elif (not player_is_defender) and is_white_arg(argument_id): # White agent. Only odd arguments are considered.
                         affordable_argument_ids.append(argument_id)
+                    affordable_str += "arg {}: {} | ".format(argument_id, argument_obj.privacy_cost)
+            logging.debug(affordable_str)
 
             # If there are no affordable arguments, player loses and local unfairness increases.
 

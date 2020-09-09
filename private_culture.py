@@ -4,21 +4,24 @@ import re
 import random
 import copy
 import logging, sys
+import os
 
 from base_culture import Culture
 from functools import partial
 from argument import Argument, PrivateArgument, ArgumentationFramework
 
-DEBUG_FILE = True
+DEBUG_FILE = False
 if DEBUG_FILE:
     LOG_FILENAME = 'debug2.log'
+    if os.path.exists(LOG_FILENAME):
+        os.remove(LOG_FILENAME)
     logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
 def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_args = 40
+    num_args = 8
     num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
@@ -37,7 +40,7 @@ class RandomCulture(Culture):
 
     def create_random_properties(self):
         for i in range(0, self.num_properties):
-            self.properties[i] = 0
+            self.properties[i] = random.randint(0, 1000)
 
     def load_framework(self):
         def generate_verifier_function(idx):
@@ -47,6 +50,10 @@ class RandomCulture(Culture):
             # idx = random.randrange(1, self.num_properties)
             return partial(verifier_prototype, idx)
 
+        random_costs = []
+        for i in range(1, 20):
+            random_costs.append(random.randint(1, 20))
+
         with open('sample2.apx', 'r') as file:
             lines = file.readlines()
             for line in lines:
@@ -54,7 +61,7 @@ class RandomCulture(Culture):
                     arg_id = int(line[line.find("(")+1 : line.find(")")])
                     new_arg = PrivateArgument(arg_id= arg_id,
                                               descriptive_text=str(arg_id),
-                                              privacy_cost= 0 if arg_id == 0 else arg_id*4)
+                                              privacy_cost= 0 if arg_id == 0 else random_costs[int(arg_id/4)])
                     if arg_id == 0:
                         new_arg.set_verifier(always_true)
                     else:
@@ -66,6 +73,7 @@ class RandomCulture(Culture):
                     attacker = int(pair[0])
                     attacked = int(pair[1])
                     self.argumentation_framework.add_attack(attacker, attacked)
+        self.argumentation_framework.stats()
 
 
     def create_arguments(self):
@@ -105,19 +113,30 @@ class RandomCulture(Culture):
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = self.num_args * 3
+        num_attacks = self.num_args * 10
+        connected = set()
+        connected.add(0)
         # num_attacks = 12
         for i in range(num_attacks):
             a = b = 0
             while a == b:  # Avoid self-attacks.
                 a = random.randint(1, self.num_args-1)
-                b = random.randint(0, self.num_args-1)
+                b = random.choice(list(connected))
                 # Avoid double arrows.
-                if b in self.argumentation_framework.arguments_that_attack(a):
+                if b in self.argumentation_framework.arguments_that_attack(a) or b > a:
                     a = b = 0
                     continue
 
             self.argumentation_framework.add_attack(a, b)
+            connected.add(a)
+            connected.add(b)
+
+        for arg_id in self.argumentation_framework.all_arguments.copy().keys():
+            if arg_id not in connected:
+                self.argumentation_framework.remove_argument(arg_id)
+        # self.argumentation_framework.make_spanning_graph()
+        self.argumentation_framework.stats()
+
 
     def generate_bw_framework(self):
         """
