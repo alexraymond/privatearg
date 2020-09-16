@@ -131,7 +131,7 @@ class AgentQueue:
         print("Ground truth: {}".format(ground_truth.queue_string()))
         print("GT Swaps: {}".format(swaps))
         print("Total yes: {}\nTotal no: {}".format(self.TOTAL_YES, self.TOTAL_NO))
-        return ground_truth
+        return ground_truth, self.TOTAL_YES, swaps
 
 
     def relative_queue(self, ground_truth):

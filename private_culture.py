@@ -21,7 +21,7 @@ def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_args = 8
+    num_args = 20
     num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
