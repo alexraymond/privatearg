@@ -127,12 +127,58 @@ class AgentQueue:
                 status_quo[anti_pair] = True
 
         # Get queue order.
-        swaps = ground_truth.interact_all(gt_result=status_quo)
+        swaps = ground_truth.interact_queue(gt_result=status_quo)
         print("Ground truth: {}".format(ground_truth.queue_string()))
         print("GT Swaps: {}".format(swaps))
         print("Total yes: {}\nTotal no: {}".format(self.TOTAL_YES, self.TOTAL_NO))
         return ground_truth, self.TOTAL_YES, swaps
 
+    def compute_ground_truth_matrix(self):
+        """
+        Computes the ground truth by removing all unverified arguments from BW framework
+        and calculating skeptical acceptance of motion.
+        :return: Sorted ground truth.
+        """
+        ground_truth = copy.deepcopy(self)
+        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        winners = {}
+        for i in range(0, len(ground_truth.queue)):
+            for j in range(0, len(ground_truth.queue)):
+                if i == j:
+                    continue
+                defender = ground_truth.queue[i]
+                challenger = ground_truth.queue[j]
+                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+
+                to_remove = []
+                for argument_id in bw_framework.all_arguments:
+                    argument_obj = bw_framework.argument(argument_id)
+                    if is_black_arg(argument_id):
+                        verified = argument_obj.verify(defender, challenger)
+                    else:
+                        verified = argument_obj.verify(challenger, defender)
+                    if not verified:
+                        to_remove.append(argument_id)
+                        # if is_verified_arg(argument_id):
+                        #     to_remove.append(argument_id - 2)
+
+                for argument_id in to_remove:
+                    bw_framework.remove_argument(argument_id)
+
+
+                solver_result = bw_framework.run_solver(semantics="DS-PR", arg_str="1")
+                if "YES" in solver_result:
+                    # Challenger wins.
+                    winners[(defender.id, challenger.id)] = challenger.id
+                    self.TOTAL_YES += 1
+                elif "NO" in solver_result:
+                    # Defender wins.
+                    winners[(defender.id, challenger.id)] = defender.id
+                    self.TOTAL_NO += 1
+                else:
+                    print("Error computing extensions")
+
+        return winners
 
     def relative_queue(self, ground_truth):
         """
@@ -156,7 +202,29 @@ class AgentQueue:
         tau, p = stats.kendalltau(ground_truth_ids, relative_ids)
         return text, tau, p
 
-    def interact_all(self, gt_result = None):
+    def interact_all_agents(self):
+        logging.debug(self.queue_string())
+        self.bw_framework = self.create_bw_framework()
+        interaction_count = 0
+        winners = {}
+
+        for i in range(0, self.size):
+            for j in range(0, self.size):
+                if i == j:
+                    continue
+                defender = self.queue[i]
+                challenger = self.queue[j]
+                status_quo = self.interact_pair(self.queue[i], self.queue[j])
+                winners[(defender.id, challenger.id)] = defender.id if status_quo else challenger.id
+                interaction_count += 1
+
+        aggregate_local_unfairness = 0
+        for agent in self.queue:
+            aggregate_local_unfairness += agent.unfair_perception_score
+        self.rate_local_unfairness = aggregate_local_unfairness / interaction_count
+        return winners
+
+    def interact_queue(self, gt_result = None):
         """
         Agents will interact with their neighbours.
         Considering the queue ordering, every agent will attempt to move towards index 0.

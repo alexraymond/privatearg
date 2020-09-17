@@ -11,7 +11,7 @@ def run_test(base_queue, baseline, arg_strategy, num_samples=1):
     for i in range(num_samples):
         q = copy.deepcopy(base_queue)
         q.set_strategy(arg_strategy)
-        swaps = q.interact_all()
+        swaps = q.interact_queue()
         text, tau, p = q.relative_queue(ground_truth=baseline)
         if arg_strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
             print("\nStrat. queue: {}".format(text))
@@ -27,6 +27,21 @@ def run_test(base_queue, baseline, arg_strategy, num_samples=1):
         averaged_unfairness += q.rate_local_unfairness / num_samples
     return averaged_tau, averaged_unfairness
 
+def compare_results(baseline, target):
+    match = 0
+    total = 0
+    for pair, winner in baseline.items():
+        if baseline[pair] == target[pair]:
+            match += 1
+        total += 1
+    return match / total
+
+def run_test_matrix(base_queue, ground_truth_matrix, arg_strategy):
+    q = copy.deepcopy(base_queue)
+    q.set_strategy(arg_strategy)
+    winners = q.interact_all_agents()
+    result = compare_results(ground_truth_matrix, winners)
+    return result, q.rate_local_unfairness
 
 def benchmark(num_iterations, queue_size, privacy_budget):
     t0 = time.time()
@@ -44,66 +59,64 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     unfairness_all_args = []
     unfairness_greedy = []
 
-    i = 0
 
-    while i < num_iterations:
+    for i in range(num_iterations):
         print("Iteration {} of {}".format(i, num_iterations))
         base_queue = AgentQueue(ArgStrategy.ALL_ARGS, size = queue_size, privacy_budget = privacy_budget)
 
         logging.debug("\n*\n*\n GROUND TRUTH \n*\n*\n")
         baseline = copy.deepcopy(base_queue)
-        baseline, predicted_swaps, actual_swaps = baseline.compute_ground_truth()
-        i += 1
-        if actual_swaps == 0 and predicted_swaps > 4:
-            i -= 1
-            print("\nRETRY\n")
-            baseline = copy.deepcopy(base_queue)
-            baseline, predicted_swaps, actual_swaps = baseline.compute_ground_truth()
-            logging.debug("\n*\n*\n RANDOM WITH PRIVACY \n*\n*\n")
-            # Test random with privacy
-            tau_random_with_privacy, uf_random_with_privacy = run_test(base_queue, baseline,
-                                                                       ArgStrategy.RANDOM_CHOICE_PRIVATE,
-                                                                       RANDOM_SAMPLES)
-            logging.debug("Kendall Tau value: {}".format(tau_random_with_privacy))
-
-            logging.debug("\n*\n*\n STRATEGIC WITH PRIVACY \n*\n*\n")
-            # Test strategic direct with privacy
-            tau_least_attackers_private, uf_least_attackers_private = run_test(base_queue, baseline,
-                                                                               ArgStrategy.LEAST_ATTACKERS_PRIVATE)
-            logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
+        ground_truth_matrix = baseline.compute_ground_truth_matrix()
+        # if actual_swaps == 0 and predicted_swaps > 4:
+        #     i -= 1
+        #     print("\nRETRY\n")
+        #     baseline = copy.deepcopy(base_queue)
+        #     baseline, predicted_swaps, actual_swaps = baseline.compute_ground_truth()
+        #     logging.debug("\n*\n*\n RANDOM WITH PRIVACY \n*\n*\n")
+        #     # Test random with privacy
+        #     tau_random_with_privacy, uf_random_with_privacy = run_test(base_queue, baseline,
+        #                                                                ArgStrategy.RANDOM_CHOICE_PRIVATE,
+        #                                                                RANDOM_SAMPLES)
+        #     logging.debug("Kendall Tau value: {}".format(tau_random_with_privacy))
+        #
+        #     logging.debug("\n*\n*\n STRATEGIC WITH PRIVACY \n*\n*\n")
+        #     # Test strategic direct with privacy
+        #     tau_least_attackers_private, uf_least_attackers_private = run_test(base_queue, baseline,
+        #                                                                        ArgStrategy.LEAST_ATTACKERS_PRIVATE)
+        #     logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
             # continue
         # print(baseline.bw_framework.to_aspartix_text())
 
         logging.debug("\n*\n*\n RANDOM WITH PRIVACY \n*\n*\n")
         # Test random with privacy
-        tau_random_with_privacy, uf_random_with_privacy = run_test(base_queue, baseline, ArgStrategy.RANDOM_CHOICE_PRIVATE, RANDOM_SAMPLES)
+        tau_random_with_privacy, uf_random_with_privacy = run_test_matrix(base_queue, ground_truth_matrix, ArgStrategy.RANDOM_CHOICE_PRIVATE)
         logging.debug("Kendall Tau value: {}".format(tau_random_with_privacy))
 
         logging.debug("\n*\n*\n GREEDY WITH PRIVACY \n*\n*\n")
         # Test greedy with privacy
-        tau_greedy_with_privacy, uf_greedy_with_privacy = run_test(base_queue, baseline, ArgStrategy.GREEDY_MIN_PRIVACY)
+        tau_greedy_with_privacy, uf_greedy_with_privacy = run_test_matrix(base_queue, ground_truth_matrix, ArgStrategy.GREEDY_MIN_PRIVACY)
         logging.debug("Kendall Tau value: {}".format(tau_greedy_with_privacy))
 
         logging.debug("\n*\n*\n STRATEGIC WITH PRIVACY \n*\n*\n")
         # Test strategic direct with privacy
-        tau_least_attackers_private, uf_least_attackers_private = run_test(base_queue, baseline,
+        tau_least_attackers_private, uf_least_attackers_private = run_test_matrix(base_queue, ground_truth_matrix,
                                                                            ArgStrategy.LEAST_ATTACKERS_PRIVATE)
         logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
 
         logging.debug("\n*\n*\n STRATEGIC NO PRIVACY \n*\n*\n")
         # Test strategic direct with privacy
-        tau_least_attackers_no_privacy, uf_least_attackers_no_privacy = run_test(base_queue, baseline,
+        tau_least_attackers_no_privacy, uf_least_attackers_no_privacy = run_test_matrix(base_queue, ground_truth_matrix,
                                                                                  ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY)
         logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
 
         logging.debug("\n*\n*\n ALL ARGS \n*\n*\n")
         # Test strategic relative with privacy
-        tau_all_args, uf_all_args = run_test(base_queue, baseline, ArgStrategy.ALL_ARGS)
+        tau_all_args, uf_all_args = run_test_matrix(base_queue, ground_truth_matrix, ArgStrategy.ALL_ARGS)
         logging.debug("Kendall Tau value: {}".format(result_all_args))
 
         logging.debug("\n*\n*\n RANDOM NO PRIVACY \n*\n*\n")
         # Test random without privacy
-        tau_random_without_privacy, uf_random_without_privacy = run_test(base_queue, baseline, ArgStrategy.RANDOM_CHOICE_NO_PRIVACY, RANDOM_SAMPLES)
+        tau_random_without_privacy, uf_random_without_privacy = run_test_matrix(base_queue, ground_truth_matrix, ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
         logging.debug("Kendall Tau value: {}".format(tau_random_without_privacy))
 
         # Collate results.
@@ -146,10 +159,10 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     ))
     ax.boxplot(results_tau, showfliers=True, showmeans=True)
     ax.legend(labels)
-    ax.set_ylabel("Kendall tau value")
+    ax.set_ylabel("Rate of matching pairs")
     plt.axhline(y=1.0, color='r')
-    plt.axhline(y=0.0, color='g')
-    plt.ylim(top=1.05)
+    plt.axhline(y=0.5, color='g')
+    # plt.ylim(top=1.05)
 
     figure2, ax2 = plt.subplots()
     # ax2 = ax.twinx()
@@ -161,7 +174,7 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     plt.show()
 
 
-benchmark(num_iterations = 200, queue_size = 5, privacy_budget = 200)
+benchmark(num_iterations = 50, queue_size = 20, privacy_budget = 20)
 
 
 
