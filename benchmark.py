@@ -51,28 +51,51 @@ def benchmark(num_iterations, queue_size, privacy_budget):
         base_queue = AgentQueue(ArgStrategy.ALL_ARGS, size = queue_size, privacy_budget = privacy_budget)
 
         logging.debug("\n*\n*\n GROUND TRUTH \n*\n*\n")
+        status_quo = {}
         baseline = copy.deepcopy(base_queue)
-        baseline, predicted_swaps, actual_swaps = baseline.compute_ground_truth()
+        baseline, predicted_swaps, actual_swaps, status_quo = baseline.compute_ground_truth()
+        total_order = 0
+        partial_order = 0
+        for pair, outcome in status_quo.items():
+            defender, challenger = pair
+            if status_quo[(defender,challenger)] != status_quo[(challenger,defender)]:
+                total_order += 1
+            else:
+                partial_order += 1
+                # print("Partial order: {} {}".format(defender, challenger))
+        print("Total pairs tested: {}".format(len(status_quo)))
+        print("Guaranteed order: {}".format(total_order))
+        print("Resource dependent: {}".format(partial_order))
+        if partial_order > 0:
+            continue
         i += 1
-        if actual_swaps == 0 and predicted_swaps > 4:
-            i -= 1
-            print("\nRETRY\n")
-            baseline = copy.deepcopy(base_queue)
-            baseline, predicted_swaps, actual_swaps = baseline.compute_ground_truth()
-            logging.debug("\n*\n*\n RANDOM WITH PRIVACY \n*\n*\n")
-            # Test random with privacy
-            tau_random_with_privacy, uf_random_with_privacy = run_test(base_queue, baseline,
-                                                                       ArgStrategy.RANDOM_CHOICE_PRIVATE,
-                                                                       RANDOM_SAMPLES)
-            logging.debug("Kendall Tau value: {}".format(tau_random_with_privacy))
 
-            logging.debug("\n*\n*\n STRATEGIC WITH PRIVACY \n*\n*\n")
-            # Test strategic direct with privacy
-            tau_least_attackers_private, uf_least_attackers_private = run_test(base_queue, baseline,
-                                                                               ArgStrategy.LEAST_ATTACKERS_PRIVATE)
-            logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
-            # continue
-        # print(baseline.bw_framework.to_aspartix_text())
+
+        # if partial_order == 0:
+        #     i -= 1
+        #     print("\nRETRY\n")
+        #     baseline = copy.deepcopy(base_queue)
+        #     print("BASE CULTURE:\n{}".format(baseline.culture.argumentation_framework.to_aspartix_text()))
+        #     for agent in baseline.queue:
+        #         print("Agent {}'s properties: {}".format(agent.id, agent.properties))
+        #
+        #     baseline, predicted_swaps, actual_swaps, status_quo = baseline.compute_ground_truth(debug=True)
+        #     print("SWAPS: {}".format(status_quo))
+        #     logging.debug("\n*\n*\n RANDOM WITH PRIVACY \n*\n*\n")
+        #     # Test random with privacy
+        #     tau_random_with_privacy, uf_random_with_privacy = run_test(base_queue, baseline,
+        #                                                                ArgStrategy.RANDOM_CHOICE_PRIVATE,
+        #                                                                RANDOM_SAMPLES)
+        #     logging.debug("Kendall Tau value: {}".format(tau_random_with_privacy))
+        #
+        #     logging.debug("\n*\n*\n STRATEGIC WITH PRIVACY \n*\n*\n")
+        #     # Test strategic direct with privacy
+        #     tau_least_attackers_private, uf_least_attackers_private = run_test(base_queue, baseline,
+        #                                                                        ArgStrategy.LEAST_ATTACKERS_PRIVATE)
+        #     logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
+        #     exit(0)
+        # else:
+        #     continue
 
         logging.debug("\n*\n*\n RANDOM WITH PRIVACY \n*\n*\n")
         # Test random with privacy
@@ -161,7 +184,7 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     plt.show()
 
 
-benchmark(num_iterations = 200, queue_size = 5, privacy_budget = 200)
+benchmark(num_iterations = 30, queue_size = 10, privacy_budget = 15)
 
 
 

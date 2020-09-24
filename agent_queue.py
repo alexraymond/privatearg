@@ -74,7 +74,7 @@ class AgentQueue:
             text += str(agent.id) + " "
         return text
 
-    def compute_ground_truth(self):
+    def compute_ground_truth(self, debug=False):
         """
         Computes the ground truth by removing all unverified arguments from BW framework
         and calculating skeptical acceptance of motion.
@@ -82,9 +82,11 @@ class AgentQueue:
         """
         ground_truth = copy.deepcopy(self)
         ground_truth.bw_framework = ground_truth.create_bw_framework()
+        if debug:
+            print("BASE BW FRAMEWORK:\n{}".format(ground_truth.bw_framework))
         status_quo = {}
-        for i in range(0, len(ground_truth.queue)-1):
-            for j in range(i, len(ground_truth.queue)):
+        for i in range(0, len(ground_truth.queue)):
+            for j in range(0, len(ground_truth.queue)):
                 if i == j:
                     continue
                 defender = ground_truth.queue[i]
@@ -108,30 +110,42 @@ class AgentQueue:
 
 
                 solver_result = bw_framework.run_solver(semantics="DS-PR", arg_str="1")
+                pair = (defender.id, challenger.id)
                 if "YES" in solver_result:
                     # Challenger wins.
                     attackers_of_1 = bw_framework.arguments_that_attack(1)
-                    pair = (defender.id, challenger.id)
+
                     anti_pair = (challenger.id, defender.id)
                     self.TOTAL_YES += 1
+                    if debug:
+                        print("DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, challenger.id))
+                    status_quo[pair] = False
                 elif "NO" in solver_result:
                     # Defender wins.
                     attackers_of_1 = bw_framework.arguments_that_attack(1)
-                    pair = (challenger.id, defender.id)
+                    # pair = (challenger.id, defender.id)
                     anti_pair = (defender.id, challenger.id)
                     self.TOTAL_NO += 1
+                    if debug:
+
+                        print("DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, defender.id))
+                    status_quo[pair] = True
                 else:
                     print("Error computing extensions")
 
-                status_quo[pair] = False
-                status_quo[anti_pair] = True
+                if debug:
+
+                    print("FRAMEWORK FOR PAIR B{} W{}:".format(defender.id, challenger.id))
+                    print(bw_framework.to_aspartix_text())
+                # status_quo[pair] = False
+                # status_quo[anti_pair] = True
 
         # Get queue order.
         swaps = ground_truth.interact_all(gt_result=status_quo)
         print("Ground truth: {}".format(ground_truth.queue_string()))
         print("GT Swaps: {}".format(swaps))
         print("Total yes: {}\nTotal no: {}".format(self.TOTAL_YES, self.TOTAL_NO))
-        return ground_truth, self.TOTAL_YES, swaps
+        return ground_truth, self.TOTAL_YES, swaps, status_quo
 
 
     def relative_queue(self, ground_truth):

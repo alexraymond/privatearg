@@ -21,7 +21,7 @@ def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_args = 20
+    num_args = 50
     num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
@@ -113,7 +113,7 @@ class RandomCulture(Culture):
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = self.num_args * 10
+        num_attacks = self.num_args * 6
         connected = set()
         connected.add(0)
         # num_attacks = 12
