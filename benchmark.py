@@ -63,15 +63,18 @@ def benchmark(num_iterations, queue_size, privacy_budget):
             else:
                 partial_order += 1
                 # print("Partial order: {} {}".format(defender, challenger))
-        print("Total pairs tested: {}".format(len(status_quo)))
+        total_pairs = len(status_quo)
+        print("Total pairs tested: {}".format(total_pairs))
         print("Guaranteed order: {}".format(total_order))
         print("Resource dependent: {}".format(partial_order))
-        if partial_order > 0:
-            continue
+        # if partial_order > 2:
+        #     print("OH NO!")
+        #     exit(0)
+        #     continue
         i += 1
 
 
-        # if partial_order == 0:
+        # if total_order <= (total_pairs / 2):
         #     i -= 1
         #     print("\nRETRY\n")
         #     baseline = copy.deepcopy(base_queue)
@@ -79,7 +82,7 @@ def benchmark(num_iterations, queue_size, privacy_budget):
         #     for agent in baseline.queue:
         #         print("Agent {}'s properties: {}".format(agent.id, agent.properties))
         #
-        #     baseline, predicted_swaps, actual_swaps, status_quo = baseline.compute_ground_truth(debug=True)
+        #     baseline, predicted_swaps, actual_swaps, status_quo = baseline.compute_ground_truth(debug=False)
         #     print("SWAPS: {}".format(status_quo))
         #     logging.debug("\n*\n*\n RANDOM WITH PRIVACY \n*\n*\n")
         #     # Test random with privacy
@@ -184,7 +187,7 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     plt.show()
 
 
-benchmark(num_iterations = 30, queue_size = 10, privacy_budget = 15)
+benchmark(num_iterations = 50, queue_size = 20, privacy_budget = 15)
 
 
 

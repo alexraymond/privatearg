@@ -35,7 +35,7 @@ class RandomCulture(Culture):
             self.load_framework()
         else:
             self.create_arguments()
-            self.define_attacks()
+            self.define_attacks_transitive()
         self.generate_bw_framework()
 
     def create_random_properties(self):
@@ -133,6 +133,61 @@ class RandomCulture(Culture):
 
         for arg_id in self.argumentation_framework.all_arguments.copy().keys():
             if arg_id not in connected:
+                self.argumentation_framework.remove_argument(arg_id)
+        # self.argumentation_framework.make_spanning_graph()
+        self.argumentation_framework.stats()
+
+    def define_attacks_transitive(self):
+        """
+        Defines attack relationships present in the culture.
+        :return: Attack relationships.
+        """
+        # print("\n\n\nGENERATING ATTACKS!")
+        num_attacks = self.num_args * 9
+        connected = set()
+        connected.add(0)
+        # num_attacks = 12
+        for i in range(num_attacks):
+            a = b = 0
+            while a == b:  # Avoid self-attacks.
+                a = random.randint(1, self.num_args-1)
+                b = random.choice(list(connected))
+                # Avoid double arrows.
+                if b in self.argumentation_framework.arguments_that_attack(a) or b > a:
+                    a = b = 0
+                    continue
+            # if b not in self.argumentation_framework.arguments_attacked_by(a):
+            #     print("{} attacks {}".format(a, b))
+            self.argumentation_framework.add_attack(a, b)
+            # print("State of AF: {}".format(self.argumentation_framework.attacks()))
+            connected.add(a)
+            connected.add(b)
+
+            # Replicate attacks recursively
+            to_visit = self.argumentation_framework.arguments_attacked_by(b).copy()
+            visited = set()
+            while to_visit:
+                # print("Propagating attacks from {} to others".format(b))
+                current_arg = to_visit.pop()
+                # print("What about {}?".format(current_arg))
+                if current_arg in visited:
+                    # print("{} has been visited already.".format(current_arg))
+                    continue
+                if current_arg in self.argumentation_framework.arguments_that_attack(a):
+                    # print("{} already attacks {}!".format(current_arg, a))
+                    continue
+                # print("Adding propagated attack: {} attacks {}".format(a, current_arg))
+                if a > current_arg:
+                    self.argumentation_framework.add_attack(a, current_arg)
+                # print("State of AF: {}".format(self.argumentation_framework.attacks()))
+                # print("Expanding list with {}".format(to_visit.union(self.argumentation_framework.arguments_attacked_by(current_arg))))
+                to_visit.update(self.argumentation_framework.arguments_attacked_by(current_arg))
+                visited.add(current_arg)
+
+
+        for arg_id in self.argumentation_framework.all_arguments.copy().keys():
+            if arg_id not in connected:
+                # print("\nREMOVING ARGUMENT {}\n".format(arg_id))
                 self.argumentation_framework.remove_argument(arg_id)
         # self.argumentation_framework.make_spanning_graph()
         self.argumentation_framework.stats()
