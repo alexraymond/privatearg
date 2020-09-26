@@ -14,7 +14,11 @@ def run_test(base_queue, baseline, arg_strategy, num_samples=1):
         swaps = q.interact_all()
         text, tau, p = q.relative_queue(ground_truth=baseline)
         if arg_strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
-            print("\nStrat. queue: {}".format(text))
+            print("\nLeast. queue: {}".format(text))
+            print("Swaps: {}".format(swaps))
+            print("Tau: {}".format(tau))
+        elif arg_strategy == ArgStrategy.MOST_ATTACKS_PRIVATE:
+            print("\nMost. queue: {}".format(text))
             print("Swaps: {}".format(swaps))
             print("Tau: {}".format(tau))
         elif arg_strategy == ArgStrategy.RANDOM_CHOICE_PRIVATE:
@@ -34,6 +38,8 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     result_random_without_privacy = []
     result_least_attackers_private = []
     result_least_attackers_no_privacy = []
+    result_most_attacks_private = []
+    result_most_attacks_no_privacy = []
     result_all_args = []
     result_greedy = []
 
@@ -41,6 +47,8 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     unfairness_random_without_privacy = []
     unfairness_least_attackers_private = []
     unfairness_least_attackers_no_privacy = []
+    unfairness_most_attacks_private = []
+    unfairness_most_attacks_no_privacy = []
     unfairness_all_args = []
     unfairness_greedy = []
 
@@ -110,16 +118,28 @@ def benchmark(num_iterations, queue_size, privacy_budget):
         tau_greedy_with_privacy, uf_greedy_with_privacy = run_test(base_queue, baseline, ArgStrategy.GREEDY_MIN_PRIVACY)
         logging.debug("Kendall Tau value: {}".format(tau_greedy_with_privacy))
 
-        logging.debug("\n*\n*\n STRATEGIC WITH PRIVACY \n*\n*\n")
+        logging.debug("\n*\n*\n LEAST ATTACKERS WITH PRIVACY \n*\n*\n")
         # Test strategic direct with privacy
         tau_least_attackers_private, uf_least_attackers_private = run_test(base_queue, baseline,
                                                                            ArgStrategy.LEAST_ATTACKERS_PRIVATE)
         logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
 
-        logging.debug("\n*\n*\n STRATEGIC NO PRIVACY \n*\n*\n")
+        logging.debug("\n*\n*\n LEAST ATTACKERS NO PRIVACY \n*\n*\n")
         # Test strategic direct with privacy
         tau_least_attackers_no_privacy, uf_least_attackers_no_privacy = run_test(base_queue, baseline,
                                                                                  ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY)
+        logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
+
+        logging.debug("\n*\n*\n MOST ATTACKS WITH PRIVACY \n*\n*\n")
+        # Test strategic direct with privacy
+        tau_most_attacks_private, uf_most_attacks_private = run_test(base_queue, baseline,
+                                                                           ArgStrategy.MOST_ATTACKS_PRIVATE)
+        logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
+
+        logging.debug("\n*\n*\n MOST ATTACKS NO PRIVACY \n*\n*\n")
+        # Test strategic direct with privacy
+        tau_most_attacks_no_privacy, uf_most_attacks_no_privacy = run_test(base_queue, baseline,
+                                                                                 ArgStrategy.MOST_ATTACKS_NO_PRIVACY)
         logging.debug("Kendall Tau value: {}".format(tau_least_attackers_private))
 
         logging.debug("\n*\n*\n ALL ARGS \n*\n*\n")
@@ -138,6 +158,8 @@ def benchmark(num_iterations, queue_size, privacy_budget):
         result_random_without_privacy.append(tau_random_without_privacy)
         result_least_attackers_private.append(tau_least_attackers_private)
         result_least_attackers_no_privacy.append(tau_least_attackers_no_privacy)
+        result_most_attacks_private.append(tau_most_attacks_private)
+        result_most_attacks_no_privacy.append(tau_most_attacks_no_privacy)
         result_all_args.append(tau_all_args)
 
         unfairness_random_with_privacy.append(uf_random_with_privacy)
@@ -145,24 +167,30 @@ def benchmark(num_iterations, queue_size, privacy_budget):
         unfairness_random_without_privacy.append(uf_random_without_privacy)
         unfairness_least_attackers_private.append(uf_least_attackers_private)
         unfairness_least_attackers_no_privacy.append(uf_least_attackers_no_privacy)
+        unfairness_most_attacks_private.append(uf_most_attacks_private)
+        unfairness_most_attacks_no_privacy.append(uf_most_attacks_no_privacy)
         unfairness_all_args.append(uf_all_args)
 
     results_tau = [result_random_with_privacy,
                    result_random_without_privacy,
                    result_greedy,
                    result_least_attackers_private,
-                   result_least_attackers_no_privacy]#,
-                   # result_all_args]
+                   result_least_attackers_no_privacy,
+                   result_most_attacks_private,
+                   result_most_attacks_no_privacy,
+                   result_all_args]
 
     results_unfairness = [unfairness_random_with_privacy,
                           unfairness_random_without_privacy,
                           unfairness_greedy,
                           unfairness_least_attackers_private,
-                          unfairness_least_attackers_no_privacy]#,
-                          # unfairness_all_args]
+                          unfairness_least_attackers_no_privacy,
+                          unfairness_most_attacks_private,
+                          unfairness_most_attacks_no_privacy,
+                          unfairness_all_args]
 
     labels = ["1. Random and Private", "2. Random no Privacy", "3. Least Cost and Private",
-              "4. Least Attackers and Private", "5. Least Attackers no Privacy"]#,  "6. Multiple args (former GT)"]
+              "4. Least Attackers and Private", "5. Least Attackers no Privacy", "6. Most Attacks and Private", "7. Most Attacks no Privacy",  "8. Multiple args "]
     t1 = time.time() - t0
     print("Time elapsed: {}".format(t1))
 
@@ -187,7 +215,7 @@ def benchmark(num_iterations, queue_size, privacy_budget):
     plt.show()
 
 
-benchmark(num_iterations = 50, queue_size = 20, privacy_budget = 15)
+benchmark(num_iterations = 10, queue_size = 20, privacy_budget = 20)
 
 
 

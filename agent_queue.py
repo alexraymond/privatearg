@@ -44,6 +44,8 @@ class ArgStrategy(Enum):
     LEAST_ATTACKERS_NO_PRIVACY = 5
     COUNT_OCCURRENCES_ADMISSIBLE_RELATIVE = 6
     ALL_ARGS = 7
+    MOST_ATTACKS_PRIVATE = 8
+    MOST_ATTACKS_NO_PRIVACY = 9
 
 
 class AgentQueue:
@@ -117,8 +119,7 @@ class AgentQueue:
 
                     anti_pair = (challenger.id, defender.id)
                     self.TOTAL_YES += 1
-                    if debug:
-                        print("DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, challenger.id))
+                    logging.debug("DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, challenger.id))
                     status_quo[pair] = False
                 elif "NO" in solver_result:
                     # Defender wins.
@@ -126,17 +127,13 @@ class AgentQueue:
                     # pair = (challenger.id, defender.id)
                     anti_pair = (defender.id, challenger.id)
                     self.TOTAL_NO += 1
-                    if debug:
-
-                        print("DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, defender.id))
+                    logging.debug("DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, defender.id))
                     status_quo[pair] = True
                 else:
                     print("Error computing extensions")
 
-                if debug:
-
-                    print("FRAMEWORK FOR PAIR B{} W{}:".format(defender.id, challenger.id))
-                    print(bw_framework.to_aspartix_text())
+                # logging.debug("FRAMEWORK FOR PAIR B{} W{}:".format(defender.id, challenger.id))
+                # logging.debug(bw_framework.to_aspartix_text())
                 # status_quo[pair] = False
                 # status_quo[anti_pair] = True
 
@@ -168,7 +165,7 @@ class AgentQueue:
             text += str(agent.id) + " "
             relative_ids.append(base_dict[agent.id])
         tau, p = stats.kendalltau(ground_truth_ids, relative_ids)
-        return text, tau, p
+        return self.queue_string(), tau, p
 
     def interact_all(self, gt_result = None):
         """
@@ -230,6 +227,7 @@ class AgentQueue:
         bw_framework.remove_argument(3)
 
         bw_framework.rank_least_attacked_arguments()
+        bw_framework.rank_strongest_attacker_arguments()
 
         # bw_framework.compute_rank_arguments_occurrence()
 
@@ -445,6 +443,61 @@ class AgentQueue:
                 rebuttal_id = bw_argument_id
                 last_argument[player] = [rebuttal_id]
                 logging.debug("Agent {} chose least attacked argument {}".format(player.id, last_argument[player]))
+                used_arguments[player].append(rebuttal_id)
+
+            elif self.strategy == ArgStrategy.MOST_ATTACKS_PRIVATE:
+                if not affordable_argument_ids:
+                    game_over = True
+                    winner = opponent
+                    player.unfair_perception_score += 1
+                    logging.debug("Agent {} cannot afford any argument!".format(player.id))
+                    logging.debug("Agent {} wins!".format(winner.id))
+                    logging.debug("Used arguments: {}".format(used_arguments[winner]))
+                    break
+                # argument_strength = self.bw_framework.argument_strength
+                # min_strength = min(argument_strength.values())
+                # max_strength = max(argument_strength.values())
+                # if min_strength == max_strength:
+                #     max_strength = 2
+                #     min_strength = 1
+                # strength_per_cost = {}
+                # for arg_id, strength in argument_strength.items():
+                #     privacy_cost = self.bw_framework.argument(arg_id).privacy_cost
+                #     if privacy_cost == 0:
+                #         privacy_cost = 1
+                #     normalised_strength = ((strength - min_strength) / (max_strength - min_strength)) * 20
+                #     strength_per_cost[arg_id] = normalised_strength / privacy_cost
+                # argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
+                # relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
+                # if self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
+                    # ranking = argument_desc_rank
+                    # pass
+                # else:
+                #     ranking = relative_desc_rank
+
+                ranking = self.bw_framework.strongest_attackers
+                rebuttal_id = -1
+                bw_argument_id = -1
+                for bw_argument_id in ranking:
+                    if bw_argument_id in affordable_argument_ids:
+                        break
+                # Convert bw id to normal id.
+                rebuttal_id = bw_argument_id
+                rebuttal_obj = self.bw_framework.argument(rebuttal_id)
+                last_argument[player] = [rebuttal_id]
+                logging.debug("Agent {} chose most attacking argument {}".format(player.id, last_argument[player]))
+                used_arguments[player].append(rebuttal_id)
+                privacy_budget[player] -= rebuttal_obj.privacy_cost
+
+            elif self.strategy == ArgStrategy.MOST_ATTACKS_NO_PRIVACY:
+                ranking = self.bw_framework.strongest_attackers
+                bw_argument_id = -1
+                for bw_argument_id in ranking:
+                    if bw_argument_id in verified_argument_ids:
+                        break
+                rebuttal_id = bw_argument_id
+                last_argument[player] = [rebuttal_id]
+                logging.debug("Agent {} chose most attacking argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(rebuttal_id)
 
             elif self.strategy == ArgStrategy.ALL_ARGS:

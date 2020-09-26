@@ -21,7 +21,7 @@ def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_args = 50
+    num_args = 20
     num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
@@ -31,11 +31,12 @@ class RandomCulture(Culture):
         self.raw_bw_framework = None
 
         self.create_random_properties()
-        if DEBUG_FILE:
-            self.load_framework()
-        else:
-            self.create_arguments()
-            self.define_attacks_transitive()
+        # if DEBUG_FILE:
+        #     self.load_framework()
+        # else:
+        self.create_arguments()
+        # self.define_attacks()
+        self.define_attacks_transitive()
         self.generate_bw_framework()
 
     def create_random_properties(self):
@@ -113,7 +114,7 @@ class RandomCulture(Culture):
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = self.num_args * 6
+        num_attacks = self.num_args * 3
         connected = set()
         connected.add(0)
         # num_attacks = 12
@@ -135,15 +136,43 @@ class RandomCulture(Culture):
             if arg_id not in connected:
                 self.argumentation_framework.remove_argument(arg_id)
         # self.argumentation_framework.make_spanning_graph()
+
+        leaves = set()
+        for id in self.argumentation_framework.argument_ids():
+            if id not in self.argumentation_framework.attacked_by().keys():
+                leaves.add(id)
+        print("Number of maximal arguments before: {}".format(len(leaves)))
+
         self.argumentation_framework.stats()
 
-    def define_attacks_transitive(self):
+    def define_attacks_transitive(self, ensure_single_winner=False):
         """
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
+
+        def replicate_attacks(a, to_visit, visited):
+            while to_visit:
+                # print("Propagating attacks from {} to others".format(b))
+                current_arg = to_visit.pop()
+                # print("What about {}?".format(current_arg))
+                if current_arg in visited:
+                    # print("{} has been visited already.".format(current_arg))
+                    continue
+                if current_arg in self.argumentation_framework.arguments_that_attack(a):
+                    # print("{} already attacks {}!".format(current_arg, a))
+                    continue
+                # print("Adding propagated attack: {} attacks {}".format(a, current_arg))
+                if a > current_arg:
+                    self.argumentation_framework.add_attack(a, current_arg)
+                # print("State of AF: {}".format(self.argumentation_framework.attacks()))
+                # print("Expanding list with {}".format(to_visit.union(self.argumentation_framework.arguments_attacked_by(current_arg))))
+                to_visit.update(self.argumentation_framework.arguments_attacked_by(current_arg))
+                visited.add(current_arg)
+
+
         # print("\n\n\nGENERATING ATTACKS!")
-        num_attacks = self.num_args * 9
+        num_attacks = self.num_args * 3
         connected = set()
         connected.add(0)
         # num_attacks = 12
@@ -166,23 +195,8 @@ class RandomCulture(Culture):
             # Replicate attacks recursively
             to_visit = self.argumentation_framework.arguments_attacked_by(b).copy()
             visited = set()
-            while to_visit:
-                # print("Propagating attacks from {} to others".format(b))
-                current_arg = to_visit.pop()
-                # print("What about {}?".format(current_arg))
-                if current_arg in visited:
-                    # print("{} has been visited already.".format(current_arg))
-                    continue
-                if current_arg in self.argumentation_framework.arguments_that_attack(a):
-                    # print("{} already attacks {}!".format(current_arg, a))
-                    continue
-                # print("Adding propagated attack: {} attacks {}".format(a, current_arg))
-                if a > current_arg:
-                    self.argumentation_framework.add_attack(a, current_arg)
-                # print("State of AF: {}".format(self.argumentation_framework.attacks()))
-                # print("Expanding list with {}".format(to_visit.union(self.argumentation_framework.arguments_attacked_by(current_arg))))
-                to_visit.update(self.argumentation_framework.arguments_attacked_by(current_arg))
-                visited.add(current_arg)
+
+            replicate_attacks(a, to_visit, visited)
 
 
         for arg_id in self.argumentation_framework.all_arguments.copy().keys():
@@ -190,6 +204,21 @@ class RandomCulture(Culture):
                 # print("\nREMOVING ARGUMENT {}\n".format(arg_id))
                 self.argumentation_framework.remove_argument(arg_id)
         # self.argumentation_framework.make_spanning_graph()
+
+        leaves = set()
+        for id in self.argumentation_framework.argument_ids():
+            if id not in self.argumentation_framework.attacked_by().keys():
+                leaves.add(id)
+        print("Number of maximal arguments before: {}".format(len(leaves)))
+        if len(leaves) > 1 and ensure_single_winner == True:
+            final_leaf = max(leaves)
+            for leaf in leaves:
+                if leaf == final_leaf:
+                    continue
+                to_visit = self.argumentation_framework.arguments_attacked_by(leaf).copy()
+                visited = set()
+                self.argumentation_framework.add_attack(final_leaf, leaf)
+                replicate_attacks(final_leaf, to_visit, visited)
         self.argumentation_framework.stats()
 
 
