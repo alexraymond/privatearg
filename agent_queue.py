@@ -21,6 +21,10 @@ class Agent:
         self.argued_with = []
         self.unfair_perception_score = 0
 
+    def set_max_privacy_budget(self, privacy_budget):
+        self.max_privacy_budget = privacy_budget
+        self.reset_privacy_budget()
+
     def reset_privacy_budget(self):
         self.privacy_budget = self.max_privacy_budget
 
@@ -39,13 +43,14 @@ class Agent:
 class ArgStrategy(Enum):
     RANDOM_CHOICE_NO_PRIVACY = 1
     RANDOM_CHOICE_PRIVATE = 2
-    GREEDY_MIN_PRIVACY = 3
+    LEAST_COST_PRIVATE = 3
     LEAST_ATTACKERS_PRIVATE = 4
     LEAST_ATTACKERS_NO_PRIVACY = 5
     COUNT_OCCURRENCES_ADMISSIBLE_RELATIVE = 6
     ALL_ARGS = 7
     MOST_ATTACKS_PRIVATE = 8
     MOST_ATTACKS_NO_PRIVACY = 9
+    LEAST_COST_NO_PRIVACY = 10
 
 
 class AgentQueue:
@@ -60,6 +65,11 @@ class AgentQueue:
         self.strategy = strategy
         self.bw_framework = None
         self.rate_local_unfairness = 0
+        self.string = ""
+
+    def set_privacy_budget(self, privacy_budget):
+        for agent in self.queue:
+            agent.set_max_privacy_budget(privacy_budget)
 
     def set_strategy(self, strategy):
         self.strategy = strategy
@@ -207,6 +217,7 @@ class AgentQueue:
         for agent in self.queue:
             aggregate_local_unfairness += agent.unfair_perception_score
         self.rate_local_unfairness = aggregate_local_unfairness / interaction_count
+        self.string = self.queue_string()
         return swaps
 
 
@@ -369,7 +380,7 @@ class AgentQueue:
                 last_argument[player] = [rebuttal_id]
                 used_arguments[player].append(rebuttal_id)
 
-            elif self.strategy == ArgStrategy.GREEDY_MIN_PRIVACY:
+            elif self.strategy == ArgStrategy.LEAST_COST_PRIVATE:
                 # FIXME: Remove duplication.
                 if not affordable_argument_ids:
                     game_over = True
@@ -389,6 +400,17 @@ class AgentQueue:
                 logging.debug("Agent {} chose cheapest argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(cheaper_argument_obj.id())
                 privacy_budget[player] -= cheaper_argument_obj.privacy_cost
+
+            elif self.strategy == ArgStrategy.LEAST_COST_NO_PRIVACY:
+                # Deterministic choice with cheaper arguments first.
+                cheaper_argument_obj = self.bw_framework.argument(verified_argument_ids[0])
+                for arg_id in verified_argument_ids:
+                    arg_obj = self.bw_framework.argument(arg_id)
+                    if arg_obj.privacy_cost < cheaper_argument_obj.privacy_cost:
+                        cheaper_argument_obj = arg_obj
+                last_argument[player] = [cheaper_argument_obj.id()]
+                logging.debug("Agent {} chose cheapest argument {}".format(player.id, last_argument[player]))
+                used_arguments[player].append(cheaper_argument_obj.id())
 
             elif self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
                 if not affordable_argument_ids:

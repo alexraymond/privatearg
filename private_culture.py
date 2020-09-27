@@ -21,7 +21,7 @@ def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_args = 20
+    num_args = 100
     num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
@@ -35,8 +35,8 @@ class RandomCulture(Culture):
         #     self.load_framework()
         # else:
         self.create_arguments()
-        # self.define_attacks()
-        self.define_attacks_transitive()
+        self.define_attacks()
+        # self.define_attacks_transitive()
         self.generate_bw_framework()
 
     def create_random_properties(self):
@@ -114,7 +114,7 @@ class RandomCulture(Culture):
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = self.num_args * 3
+        num_attacks = self.num_args * 5
         connected = set()
         connected.add(0)
         # num_attacks = 12
@@ -141,9 +141,9 @@ class RandomCulture(Culture):
         for id in self.argumentation_framework.argument_ids():
             if id not in self.argumentation_framework.attacked_by().keys():
                 leaves.add(id)
-        print("Number of maximal arguments before: {}".format(len(leaves)))
+        # print("Number of maximal arguments before: {}".format(len(leaves)))
 
-        self.argumentation_framework.stats()
+        # self.argumentation_framework.stats()
 
     def define_attacks_transitive(self, ensure_single_winner=False):
         """
@@ -209,7 +209,7 @@ class RandomCulture(Culture):
         for id in self.argumentation_framework.argument_ids():
             if id not in self.argumentation_framework.attacked_by().keys():
                 leaves.add(id)
-        print("Number of maximal arguments before: {}".format(len(leaves)))
+        # print("Number of maximal arguments before: {}".format(len(leaves)))
         if len(leaves) > 1 and ensure_single_winner == True:
             final_leaf = max(leaves)
             for leaf in leaves:
@@ -219,7 +219,7 @@ class RandomCulture(Culture):
                 visited = set()
                 self.argumentation_framework.add_attack(final_leaf, leaf)
                 replicate_attacks(final_leaf, to_visit, visited)
-        self.argumentation_framework.stats()
+        # self.argumentation_framework.stats()
 
 
     def generate_bw_framework(self):
