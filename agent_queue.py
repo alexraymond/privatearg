@@ -35,7 +35,16 @@ class Agent:
         # Randomise values for random culture.
         if isinstance(self.culture, RandomCulture):
             for key, value in self.properties.items():
-                self.properties[key] = random.randint(0, 100)
+                self.properties[key] = random.randint(0, 1000)
+                # dist = []
+                # for i in range(21):
+                #     if i > key:
+                #         dist.append(random.randint(0, 1000))
+                #     else:
+                #         dist.append(0)
+                # self.properties[key] = random.choice(dist)
+
+
 
     def has_argued_with(self, agent_id):
         return agent_id in self.argued_with
@@ -276,6 +285,9 @@ class AgentQueue:
 
         logging.debug("#####################")
         logging.debug("Agent {} (defender) vs Agent {} (challenger)".format(defender.id, challenger.id))
+        logging.debug("PROPERTIES:\n")
+        for i in range(len(self.culture.properties)):
+            logging.debug("PID[{}]: {}  |  {}".format(i, defender.properties[i], challenger.properties[i]))
 
         # Black = defender. White = challenger.
         # bw_framework = self.create_bw_framework(defender, challenger)

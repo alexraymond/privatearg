@@ -5,6 +5,7 @@ import random
 import copy
 import logging, sys
 import os
+import numpy as np
 
 from base_culture import Culture
 from functools import partial
@@ -21,7 +22,7 @@ def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_args = 100
+    num_args = 20
     num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
@@ -35,13 +36,16 @@ class RandomCulture(Culture):
         #     self.load_framework()
         # else:
         self.create_arguments()
-        self.define_attacks()
-        # self.define_attacks_transitive()
+        # self.define_attacks()
+        self.define_attacks_transitive()
         self.generate_bw_framework()
 
     def create_random_properties(self):
         for i in range(0, self.num_properties):
             self.properties[i] = random.randint(0, 1000)
+            # dist = np.random.normal(50.5, 1, 100)
+            # value = random.choice(dist)
+            # self.properties[i] = int(value)
 
     def load_framework(self):
         def generate_verifier_function(idx):
@@ -145,7 +149,7 @@ class RandomCulture(Culture):
 
         # self.argumentation_framework.stats()
 
-    def define_attacks_transitive(self, ensure_single_winner=False):
+    def define_attacks_transitive(self, ensure_single_winner=True):
         """
         Defines attack relationships present in the culture.
         :return: Attack relationships.
@@ -209,7 +213,7 @@ class RandomCulture(Culture):
         for id in self.argumentation_framework.argument_ids():
             if id not in self.argumentation_framework.attacked_by().keys():
                 leaves.add(id)
-        # print("Number of maximal arguments before: {}".format(len(leaves)))
+        print("Number of maximal arguments before: {}".format(len(leaves)))
         if len(leaves) > 1 and ensure_single_winner == True:
             final_leaf = max(leaves)
             for leaf in leaves:
