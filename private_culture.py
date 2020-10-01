@@ -176,7 +176,7 @@ class RandomCulture(Culture):
 
 
         # print("\n\n\nGENERATING ATTACKS!")
-        num_attacks = self.num_args * 3
+        num_attacks = self.num_args * 4
         connected = set()
         connected.add(0)
         # num_attacks = 12
@@ -214,15 +214,15 @@ class RandomCulture(Culture):
             if id not in self.argumentation_framework.attacked_by().keys():
                 leaves.add(id)
         print("Number of maximal arguments before: {}".format(len(leaves)))
-        if len(leaves) > 1 and ensure_single_winner == True:
-            final_leaf = max(leaves)
-            for leaf in leaves:
-                if leaf == final_leaf:
-                    continue
-                to_visit = self.argumentation_framework.arguments_attacked_by(leaf).copy()
-                visited = set()
-                self.argumentation_framework.add_attack(final_leaf, leaf)
-                replicate_attacks(final_leaf, to_visit, visited)
+        # if len(leaves) > 1 and ensure_single_winner == True:
+        #     final_leaf = max(leaves)
+        #     for leaf in leaves:
+        #         if leaf == final_leaf:
+        #             continue
+        #         to_visit = self.argumentation_framework.arguments_attacked_by(leaf).copy()
+        #         visited = set()
+        #         self.argumentation_framework.add_attack(final_leaf, leaf)
+        #         replicate_attacks(final_leaf, to_visit, visited)
         # self.argumentation_framework.stats()
 
 

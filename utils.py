@@ -1,3 +1,5 @@
+from agent_queue import *
+
 def is_black_arg(arg_id):
     return arg_id % 2 == 0
 
