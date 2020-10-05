@@ -46,6 +46,10 @@ def dag_distance(aq: AgentQueue, ground_truth, result, p, q):
     edges_gtr = []
     edges_res = []
 
+    a = 0
+    b = 0
+    c = 0
+
     distance = 0
     total_pairs = 0
     for i in range(0, len(aq.queue)-1):
@@ -71,15 +75,15 @@ def dag_distance(aq: AgentQueue, ground_truth, result, p, q):
             if ((pair in edges_gtr) and (riap in edges_res)) \
                or \
                ((riap in edges_gtr) and (pair in edges_res)):
-                distance += 1
+                c += 1
             # Case 3: edge only exists in one case
             elif (edge_in_gt and not edge_in_res) or (edge_in_res and not edge_in_gt):
-                distance += p
+                a += 1
             # Case 4: no edge in either
             elif (not edge_in_gt) and (not edge_in_res):
-                distance += q
+                b += 1
 
-    return distance / total_pairs
+    return (a, b, c, total_pairs)
 
 
 
@@ -98,9 +102,9 @@ def run_test_matrix(base_queue, ground_truth_matrix, privacy_budget, arg_strateg
     q.set_privacy_budget(privacy_budget)
     q.set_strategy(arg_strategy)
     winners = q.interact_all_matrix()
-    result = dag_distance(q, ground_truth_matrix, winners, p=0.5, q=0.25)
+    a, b, c, total_pairs = dag_distance(q, ground_truth_matrix, winners, p=0, q=0)
     # print("{}\nDistance: {}".format(arg_strategy, result))
-    return result, q.rate_local_unfairness
+    return a, b, c, total_pairs, q.rate_local_unfairness
 
 
 def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, test_type='ordering'):
@@ -108,14 +112,15 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
     i = 0
     using_ground_truth = True
 
-    with open('result_025q.csv', 'w') as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(["PRIVACY",
-                         "TAU_RANDOM", "UNF_RANDOM",
-                         "TAU_LEAST_COST, UNF_LEAST_COST"
-                         "TAU_LEAST_ATTACKERS", "UNF_LEAST_ATTACKERS",
-                         "TAU_MOST_ATTACKS", "UNF_MOST_ATTACKS"])
-        csv_file.close()
+    # with open('ground_truth_results.csv', 'w') as csv_file:
+    #     writer = csv.writer(csv_file)
+    #     writer.writerow(["EXPERIMENT_ID", "PRIVACY", "TOTAL_PAIRS",
+    #                      "A_RANDOM", "B_RANDOM", "C_RANDOM", "UNF_RANDOM",
+    #                      "A_LEAST_COST", "B_LEAST_COST", "C_LEAST_COST", "UNF_LEAST_COST",
+    #                      "A_LEAST_ATTACKERS", "B_LEAST_ATTACKERS", "C_LEAST_ATTACKERS", "UNF_LEAST_ATTACKERS",
+    #                      "A_MOST_ATTACKS", "B_MOST_ATTACKS", "C_MOST_ATTACKS", "UNF_MOST_ATTACKS",
+    #                      "A_GROUND_TRUTH", "B_GROUND_TRUTH", "C_GROUND_TRUTH"])
+    #     csv_file.close()
 
     init = lambda pb=max_privacy_budget: [[] for x in range(pb)]
     agg_results_tau_random = init()
@@ -130,14 +135,19 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
 
     ground_truth_distance = 0
 
+    experiment_id = -1
     while i < num_experiments:
         i += 1
 
+        with open('experiment_id', "r") as id_file:
+            experiment_id = int(id_file.read())
+            id_file.close()
         base_queue = AgentQueue(ArgStrategy.ALL_ARGS, size=queue_size, privacy_budget=max_privacy_budget)
-        print("\nExperiment {} of {}".format(i, num_experiments))
+        print("\nExperiment {}".format(experiment_id))
         t_before_experiment = time.time()
-        random.seed(i)
+        random.seed(experiment_id)
 
+        a_gt = b_gt = c_gt = 0
         if test_type == 'ordering':
             baseline_random = copy.deepcopy(base_queue)
             baseline_random.set_strategy(ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
@@ -165,7 +175,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
                 baseline_least_cost = baseline_general
                 baseline_least_attackers = baseline_general
                 baseline_most_attackers = baseline_general
-                ground_truth_distance = dag_distance(base_queue, baseline_general, baseline_general, 0.5, 0.25)
+                a_gt, b_gt, c_gt, total_pairs = dag_distance(base_queue, baseline_general, baseline_general, 0, 0)
                 print("\nGround truth distance: {}".format(ground_truth_distance))
             else:
                 baseline_random = copy.deepcopy(base_queue)
@@ -185,47 +195,60 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
                 baseline_most_attackers = baseline_most_attackers.interact_all_matrix()
 
 
-        for g in range(0, max_privacy_budget):
+        for g in range(0, max_privacy_budget, 2):
             print("{}".format(g), end=" ")
 
 
 
 
-            random.seed(i)
-            tau_random_with_privacy, uf_random_with_privacy = run_test(base_queue, baseline_random, g,
-                                                                       ArgStrategy.RANDOM_CHOICE_PRIVATE, test_type)
+            random.seed(experiment_id)
+            a_random, b_random, c_random, tp, uf_random = run_test(base_queue, baseline_random, g,
+                                                                   ArgStrategy.RANDOM_CHOICE_PRIVATE, test_type)
 
-            tau_least_cost_private, uf_least_cost_private = run_test(base_queue, baseline_least_cost, g,
-                                                                     ArgStrategy.LEAST_COST_PRIVATE, test_type)
+            a_least_cost, b_least_cost, c_least_cost, tp, uf_least_cost = run_test(base_queue, baseline_least_cost, g,
+                                                                                   ArgStrategy.LEAST_COST_PRIVATE, test_type)
 
-            tau_least_attackers_private, uf_least_attackers_private = run_test(base_queue, baseline_least_attackers, g,
+            a_least_att, b_least_att, c_least_att, tp, uf_least_att = run_test(base_queue, baseline_least_attackers, g,
                                                                                ArgStrategy.LEAST_ATTACKERS_PRIVATE, test_type)
 
-            tau_most_attacks_private, uf_most_attacks_private = run_test(base_queue, baseline_most_attackers, g,
-                                                                         ArgStrategy.MOST_ATTACKS_PRIVATE, test_type)
+            a_most_att, b_most_att, c_most_att, tp, uf_most_att = run_test(base_queue, baseline_most_attackers, g,
+                                                                           ArgStrategy.MOST_ATTACKS_PRIVATE, test_type)
 
 
-            agg_results_tau_random[g].append(tau_random_with_privacy - ground_truth_distance)
-            agg_results_tau_least_cost[g].append(tau_least_cost_private - ground_truth_distance)
-            agg_results_tau_least_attackers[g].append(tau_least_attackers_private - ground_truth_distance)
-            agg_results_tau_most_attacks[g].append(tau_most_attacks_private - ground_truth_distance)
+            # agg_results_tau_random[g].append(tau_random_with_privacy - ground_truth_distance)
+            # agg_results_tau_least_cost[g].append(tau_least_cost_private - ground_truth_distance)
+            # agg_results_tau_least_attackers[g].append(tau_least_attackers_private - ground_truth_distance)
+            # agg_results_tau_most_attacks[g].append(tau_most_attacks_private - ground_truth_distance)
+            #
+            # agg_results_local_unf_random[g].append(uf_random_with_privacy)
+            # agg_results_local_unf_least_cost[g].append(uf_least_cost_private)
+            # agg_results_local_unf_least_attackers[g].append(uf_least_attackers_private)
+            # agg_results_local_unf_most_attacks[g].append(uf_most_attacks_private)
 
-            agg_results_local_unf_random[g].append(uf_random_with_privacy)
-            agg_results_local_unf_least_cost[g].append(uf_least_cost_private)
-            agg_results_local_unf_least_attackers[g].append(uf_least_attackers_private)
-            agg_results_local_unf_most_attacks[g].append(uf_most_attacks_private)
-
-            with open('result_1.csv', 'a') as csv_file:
+            # ["EXPERIMENT_ID", "PRIVACY", "TOTAL_PAIRS"
+            #                              "A_RANDOM", "B_RANDOM", "C_RANDOM", "UNF_RANDOM",
+            #  "A_LEAST_COST", "B_LEAST_COST", "C_LEAST_COST", "UNF_LEAST_COST"
+            #                                                  "A_LEAST_ATTACKERS", "B_LEAST_ATTACKERS",
+            #  "C_LEAST_ATTACKERS", "UNF_LEAST_ATTACKERS",
+            #  "A_MOST_ATTACKS", "B_MOST_ATTACKS", "C_MOST_ATTACKS", "UNF_MOST_ATTACKS",
+            #  "A_GROUND_TRUTH", "B_GROUND_TRUTH", "C_GROUND_TRUTH"]
+            with open('ground_truth_results.csv', 'a') as csv_file:
                 writer = csv.writer(csv_file)
-                writer.writerow([g,
-                                 tau_random_with_privacy, uf_random_with_privacy,
-                                 tau_least_cost_private, uf_least_cost_private,
-                                 tau_least_attackers_private, uf_least_attackers_private,
-                                 tau_most_attacks_private, uf_most_attacks_private])
+                writer.writerow(
+                    [experiment_id, g, tp,
+                     a_random, b_random, c_random, uf_random,
+                     a_least_cost, b_least_cost, c_least_cost, uf_least_cost,
+                     a_least_att, b_least_att, c_least_att, uf_least_att,
+                     a_most_att, b_most_att, c_most_att, uf_most_att,
+                     a_gt, b_gt, c_gt])
                 csv_file.close()
+
 
         delta = time.time() - t_before_experiment
         print("Time running experiment {}: {:.0f}s".format(i, delta))
+        with open('experiment_id', "w") as id_file:
+            id_file.write(str(experiment_id + 1))
+            id_file.close()
 
 
     t1 = time.time() - t0
@@ -313,7 +336,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
     ax_least_cost_unf.set_ylabel("Rate of unfair interactions")
     ax_least_cost_unf.set_title("Interactions ended by shortness of budget.\n(least cost)")
     ax_least_cost_unf.boxplot(agg_results_local_unf_least_cost, showfliers=False, showmeans=True,
-                                   patch_artist=True)
+                              patch_artist=True)
     ax_least_cost_unf.set_ylim(top=0.55)
 
     ######################
@@ -529,7 +552,7 @@ def benchmark(num_iterations, queue_size, privacy_budget, test_type='ordering'):
 
 
 # benchmark(num_iterations = 30, queue_size = 20, privacy_budget = 10, test_type='matrix')
-benchmark_same_strategy(num_experiments=270, queue_size=50, max_privacy_budget=80, test_type='matrix')
+benchmark_same_strategy(num_experiments=500, queue_size=50, max_privacy_budget=60, test_type='matrix')
 
 
 
