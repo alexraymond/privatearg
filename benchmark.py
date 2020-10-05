@@ -98,7 +98,7 @@ def run_test_matrix(base_queue, ground_truth_matrix, privacy_budget, arg_strateg
     q.set_privacy_budget(privacy_budget)
     q.set_strategy(arg_strategy)
     winners = q.interact_all_matrix()
-    result = dag_distance(q, ground_truth_matrix, winners, p=0.5, q=0.2)
+    result = dag_distance(q, ground_truth_matrix, winners, p=0.5, q=0.25)
     # print("{}\nDistance: {}".format(arg_strategy, result))
     return result, q.rate_local_unfairness
 
@@ -106,8 +106,9 @@ def run_test_matrix(base_queue, ground_truth_matrix, privacy_budget, arg_strateg
 def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, test_type='ordering'):
     t0 = time.time()
     i = 0
+    using_ground_truth = True
 
-    with open('result_1.csv', 'w') as csv_file:
+    with open('result_025q.csv', 'w') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(["PRIVACY",
                          "TAU_RANDOM", "UNF_RANDOM",
@@ -127,12 +128,16 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
     agg_results_local_unf_least_attackers = init()
     agg_results_local_unf_most_attacks = init()
 
+    ground_truth_distance = 0
+
     while i < num_experiments:
         i += 1
 
         base_queue = AgentQueue(ArgStrategy.ALL_ARGS, size=queue_size, privacy_budget=max_privacy_budget)
-        print("Experiment {} of {}".format(i, num_experiments))
+        print("\nExperiment {} of {}".format(i, num_experiments))
+        t_before_experiment = time.time()
         random.seed(i)
+
         if test_type == 'ordering':
             baseline_random = copy.deepcopy(base_queue)
             baseline_random.set_strategy(ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
@@ -150,21 +155,35 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
             baseline_most_attackers.set_strategy(ArgStrategy.MOST_ATTACKS_NO_PRIVACY)
             baseline_most_attackers.interact_all()
         elif test_type == 'matrix':
-            baseline_random = copy.deepcopy(base_queue)
-            baseline_random.set_strategy(ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
-            baseline_random = baseline_random.interact_all_matrix()
+            if using_ground_truth:
+                baseline_general = copy.deepcopy(base_queue)
+                tbefore = time.time()
+                baseline_general = baseline_general.compute_ground_truth_matrix()
+                delta = time.time() - tbefore
+                print("Time computing ground truth matrix: {:.0f}s".format(delta))
+                baseline_random = baseline_general
+                baseline_least_cost = baseline_general
+                baseline_least_attackers = baseline_general
+                baseline_most_attackers = baseline_general
+                ground_truth_distance = dag_distance(base_queue, baseline_general, baseline_general, 0.5, 0.25)
+                print("\nGround truth distance: {}".format(ground_truth_distance))
+            else:
+                baseline_random = copy.deepcopy(base_queue)
+                baseline_random.set_strategy(ArgStrategy.RANDOM_CHOICE_NO_PRIVACY)
+                baseline_random = baseline_random.interact_all_matrix()
 
-            baseline_least_cost = copy.deepcopy(base_queue)
-            baseline_least_cost.set_strategy(ArgStrategy.LEAST_COST_NO_PRIVACY)
-            baseline_least_cost = baseline_least_cost.interact_all_matrix()
+                baseline_least_cost = copy.deepcopy(base_queue)
+                baseline_least_cost.set_strategy(ArgStrategy.LEAST_COST_NO_PRIVACY)
+                baseline_least_cost = baseline_least_cost.interact_all_matrix()
 
-            baseline_least_attackers = copy.deepcopy(base_queue)
-            baseline_least_attackers.set_strategy(ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY)
-            baseline_least_attackers = baseline_least_attackers.interact_all_matrix()
+                baseline_least_attackers = copy.deepcopy(base_queue)
+                baseline_least_attackers.set_strategy(ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY)
+                baseline_least_attackers = baseline_least_attackers.interact_all_matrix()
 
-            baseline_most_attackers = copy.deepcopy(base_queue)
-            baseline_most_attackers.set_strategy(ArgStrategy.MOST_ATTACKS_NO_PRIVACY)
-            baseline_most_attackers = baseline_most_attackers.interact_all_matrix()
+                baseline_most_attackers = copy.deepcopy(base_queue)
+                baseline_most_attackers.set_strategy(ArgStrategy.MOST_ATTACKS_NO_PRIVACY)
+                baseline_most_attackers = baseline_most_attackers.interact_all_matrix()
+
 
         for g in range(0, max_privacy_budget):
             print("{}".format(g), end=" ")
@@ -186,10 +205,10 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
                                                                          ArgStrategy.MOST_ATTACKS_PRIVATE, test_type)
 
 
-            agg_results_tau_random[g].append(tau_random_with_privacy)
-            agg_results_tau_least_cost[g].append(tau_least_cost_private)
-            agg_results_tau_least_attackers[g].append(tau_least_attackers_private)
-            agg_results_tau_most_attacks[g].append(tau_most_attacks_private)
+            agg_results_tau_random[g].append(tau_random_with_privacy - ground_truth_distance)
+            agg_results_tau_least_cost[g].append(tau_least_cost_private - ground_truth_distance)
+            agg_results_tau_least_attackers[g].append(tau_least_attackers_private - ground_truth_distance)
+            agg_results_tau_most_attacks[g].append(tau_most_attacks_private - ground_truth_distance)
 
             agg_results_local_unf_random[g].append(uf_random_with_privacy)
             agg_results_local_unf_least_cost[g].append(uf_least_cost_private)
@@ -204,6 +223,9 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
                                  tau_least_attackers_private, uf_least_attackers_private,
                                  tau_most_attacks_private, uf_most_attacks_private])
                 csv_file.close()
+
+        delta = time.time() - t_before_experiment
+        print("Time running experiment {}: {:.0f}s".format(i, delta))
 
 
     t1 = time.time() - t0
@@ -244,7 +266,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
     ax_random_unf.set_ylabel("Rate of unfair interactions")
     ax_random_unf.set_title("Interactions ended by shortness of budget.\n(random)")
     ax_random_unf.boxplot(agg_results_local_unf_random, showfliers=False, showmeans=True, patch_artist=True)
-    ax_random_unf.set_ylim(top=1.05)
+    ax_random_unf.set_ylim(top=0.55)
 
     ######################
     # LEAST ATTACKERS ####
@@ -267,7 +289,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
     ax_least_attackers_unf.set_ylabel("Rate of unfair interactions")
     ax_least_attackers_unf.set_title("Interactions ended by shortness of budget.\n(least attackers)")
     ax_least_attackers_unf.boxplot(agg_results_local_unf_least_attackers, showfliers=False, showmeans=True, patch_artist=True)
-    ax_least_attackers_unf.set_ylim(top=1.05)
+    ax_least_attackers_unf.set_ylim(top=0.55)
 
     ######################
     # LEAST COST #########
@@ -292,7 +314,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
     ax_least_cost_unf.set_title("Interactions ended by shortness of budget.\n(least cost)")
     ax_least_cost_unf.boxplot(agg_results_local_unf_least_cost, showfliers=False, showmeans=True,
                                    patch_artist=True)
-    ax_least_cost_unf.set_ylim(top=1.05)
+    ax_least_cost_unf.set_ylim(top=0.55)
 
     ######################
     # MOST ATTACKS #######
@@ -315,7 +337,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
     ax_most_attacks_unf.set_ylabel("Rate of unfair interactions")
     ax_most_attacks_unf.set_title("Interactions ended by shortness of budget.\n(most attackers)")
     ax_most_attacks_unf.boxplot(agg_results_local_unf_most_attacks, showfliers=False, showmeans=True, patch_artist=True)
-    ax_most_attacks_unf.set_ylim(top=1.05)
+    ax_most_attacks_unf.set_ylim(top=0.55)
 
     plt.show()
 
@@ -506,8 +528,8 @@ def benchmark(num_iterations, queue_size, privacy_budget, test_type='ordering'):
     plt.show()
 
 
-# benchmark(num_iterations = 30, queue_size = 20, privacy_budget = 15, test_type='matrix')
-benchmark_same_strategy(num_experiments=30, queue_size=20, max_privacy_budget=80, test_type='matrix')
+# benchmark(num_iterations = 30, queue_size = 20, privacy_budget = 10, test_type='matrix')
+benchmark_same_strategy(num_experiments=270, queue_size=50, max_privacy_budget=80, test_type='matrix')
 
 
 
