@@ -552,7 +552,7 @@ def benchmark(num_iterations, queue_size, privacy_budget, test_type='ordering'):
 
 
 # benchmark(num_iterations = 30, queue_size = 20, privacy_budget = 10, test_type='matrix')
-benchmark_same_strategy(num_experiments=500, queue_size=50, max_privacy_budget=60, test_type='matrix')
+benchmark_same_strategy(num_experiments=10, queue_size=50, max_privacy_budget=60, test_type='matrix')
 
 
 

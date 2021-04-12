@@ -78,7 +78,7 @@ class RandomCulture(Culture):
                     attacker = int(pair[0])
                     attacked = int(pair[1])
                     self.argumentation_framework.add_attack(attacker, attacked)
-        self.argumentation_framework.stats()
+        # self.argumentation_framework.stats()
 
 
     def create_arguments(self):
