@@ -13,7 +13,7 @@ import os
 import math
 import random
 
-from vehicle import VehicleModel
+from vehicle_model import VehicleModel
 
 SPRITE_SCALING = 0.5
 
@@ -27,18 +27,19 @@ ANGLE_SPEED = 5
 
 class BoatSprite(arcade.Sprite):
     """ Player class """
-    BOAT_SIZE = "medium"
+    BOAT_SIZE_LABEL = "medium"
+    SIZES = {"small": 105, "medium": 179, "large": 368}
 
     def __init__(self, image, scale, center_x, center_y):
-        """ Set up the player """
-        self.vehicle_model = VehicleModel(center_x, center_y)
+        """ Create vehicle model and setup sprites """
+        self.vehicle_model = VehicleModel(center_x, center_y, length=self.SIZES[self.BOAT_SIZE_LABEL])
 
         # Adding sprite for ripple effects.
         self.ripple_sprite = arcade.Sprite(
-            filename="images/water_ripple_{}_00{}.png".format(self.BOAT_SIZE, random.randint(0, 5),
+            filename="images/water_ripple_{}_00{}.png".format(self.BOAT_SIZE_LABEL, random.randint(0, 0),
                                                               center_x=center_x,
                                                               center_y=center_y, hit_box_algorithm="None"))
-        self.ripple_sprite.scale = SPRITE_SCALING
+        self.ripple_sprite.scale = SPRITE_SCALING + 0.05  # FIXME: Workaround to avoid overlap
 
         # Call the parent init
         super().__init__(image, scale)
@@ -46,8 +47,8 @@ class BoatSprite(arcade.Sprite):
         # Create a variable to hold our speed. 'angle' is created by the parent
         self.speed = 0
 
-    def update_ripple_sprite(self, angle, center_x, center_y):
-        self.ripple_sprite.angle = angle
+    def update_ripple_sprite(self, radians, center_x, center_y):
+        self.ripple_sprite.radians = radians
         self.ripple_sprite.center_x = center_x
         self.ripple_sprite.center_y = center_y
         self.ripple_sprite.alpha = math.fabs(self.vehicle_model.relative_speed() * 255)
@@ -56,16 +57,17 @@ class BoatSprite(arcade.Sprite):
 
     def update(self):
         # Update vehicle physics
-        self.vehicle_model.update_pos()
+        self.vehicle_model.calculate_forces()
 
         # Rotate the ship
-        self.angle = self.vehicle_model.heading
+        self.radians = self.vehicle_model.heading
+        # print("angle: {}".format(self.angle))
 
         # Use math to find our change based on our speed and angle
-        self.center_x = self.vehicle_model.center_x
-        self.center_y = self.vehicle_model.center_y
+        self.center_x = self.vehicle_model.cx
+        self.center_y = self.vehicle_model.cy
 
-        self.update_ripple_sprite(self.angle, self.center_x, self.center_y)
+        self.update_ripple_sprite(self.radians, self.center_x, self.center_y)
 
 
 class MyGame(arcade.Window):
@@ -97,6 +99,12 @@ class MyGame(arcade.Window):
         # Set the background color
         arcade.set_background_color(arcade.color.BLACK)
 
+        # Human control
+        self.left_pressed = False
+        self.right_pressed = False
+        self.up_pressed = False
+        self.down_pressed = False
+
     def setup(self):
         """ Set up the game and initialize the variables. """
 
@@ -107,7 +115,7 @@ class MyGame(arcade.Window):
         # Set up the player
         center_x = SCREEN_WIDTH / 2
         center_y = SCREEN_HEIGHT / 2
-        self.boat_sprite = BoatSprite("images/ship_medium_body.png", SPRITE_SCALING, center_x, center_y)
+        self.boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y)
         self.boat_sprite.center_x = center_x
         self.boat_sprite.center_y = center_y
         self.boat_sprite_list.append(self.boat_sprite)
@@ -132,32 +140,43 @@ class MyGame(arcade.Window):
 
         # Call update on all sprites (The sprites don't do much in this
         # example though.)
+
+        self.boat_sprite.vehicle_model.reset_inputs()
+
+        if self.up_pressed and not self.down_pressed:
+            self.boat_sprite.vehicle_model.throttle = 1.0
+        elif self.down_pressed and not self.up_pressed:
+            self.boat_sprite.vehicle_model.brake = 1.0
+        if self.left_pressed and not self.right_pressed:
+            self.boat_sprite.vehicle_model.left = 1.0
+        elif self.right_pressed and not self.left_pressed:
+            self.boat_sprite.vehicle_model.right = 1.0
+
         self.boat_sprite_list.update()
 
     def on_key_press(self, key, modifiers):
         """Called whenever a key is pressed. """
 
-        # Forward/back
         if key == arcade.key.UP:
-            self.boat_sprite.vehicle_model.manual_input(acceleration=0.1, steering=0.0)
+            self.up_pressed = True
         elif key == arcade.key.DOWN:
-            self.boat_sprite.vehicle_model.manual_input(acceleration=-0.1, steering=0.0)
-
-        # Rotate left/right
+            self.down_pressed = True
         elif key == arcade.key.LEFT:
-            self.boat_sprite.vehicle_model.manual_input(acceleration=0.0, steering=15.0)
+            self.left_pressed = True
         elif key == arcade.key.RIGHT:
-            self.boat_sprite.vehicle_model.manual_input(acceleration=0.0, steering=-15.0)
+            self.right_pressed = True
 
     def on_key_release(self, key, modifiers):
         """Called when the user releases a key. """
-        pass
 
-        # if key == arcade.key.UP or key == arcade.key.DOWN:
-        #     self.player_sprite.speed = 0
-        # elif key == arcade.key.LEFT or key == arcade.key.RIGHT:
-        #     self.player_sprite.change_angle = 0
-
+        if key == arcade.key.UP:
+            self.up_pressed = False
+        elif key == arcade.key.DOWN:
+            self.down_pressed = False
+        elif key == arcade.key.LEFT:
+            self.left_pressed = False
+        elif key == arcade.key.RIGHT:
+            self.right_pressed = False
 
 def main():
     """ Main method """
