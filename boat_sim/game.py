@@ -13,12 +13,13 @@ import os
 import math
 import random
 
-from vehicle_model import VehicleModel
+from vehicle_model import BoatModel
+from sim import Sim
 
 SPRITE_SCALING = 0.5
 
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 1024
+SCREEN_WIDTH = 1080
+SCREEN_HEIGHT = 1080
 SCREEN_TITLE = "Boat Sim"
 
 MOVEMENT_SPEED = 5
@@ -27,30 +28,36 @@ ANGLE_SPEED = 5
 
 class BoatSprite(arcade.Sprite):
     """ Player class """
-    BOAT_SIZE_LABEL = "medium"
     SIZES = {"small": 105, "medium": 179, "large": 368}
+    OFFSET = 15
 
-    def __init__(self, image, scale, center_x, center_y):
+    def __init__(self, image, scale, center_x, center_y, size_label="medium"):
         """ Create vehicle model and setup sprites """
-        self.vehicle_model = VehicleModel(center_x, center_y, length=self.SIZES[self.BOAT_SIZE_LABEL])
-
-        # Adding sprite for ripple effects.
-        self.ripple_sprite = arcade.Sprite(
-            filename="images/water_ripple_{}_00{}.png".format(self.BOAT_SIZE_LABEL, random.randint(0, 0),
-                                                              center_x=center_x,
-                                                              center_y=center_y, hit_box_algorithm="None"))
-        self.ripple_sprite.scale = SPRITE_SCALING + 0.05  # FIXME: Workaround to avoid overlap
 
         # Call the parent init
         super().__init__(image, scale)
+
+        self.length = self.SIZES[size_label]
+        self.vehicle_model = BoatModel(center_x, center_y, length=self.length)
+
+        self.center_x = center_x
+        self.center_y = center_y
+
+        # Adding sprite for ripple effects.
+        self.ripple_sprite = arcade.Sprite(
+            filename="images/water_ripple_{}_00{}.png".format(size_label, random.randint(0, 0),
+                                                              center_x=center_x,
+                                                              center_y=center_y, hit_box_algorithm="None"))
+        self.ripple_sprite.scale = SPRITE_SCALING + 0.1  # FIXME: Workaround to avoid overlap
+
 
         # Create a variable to hold our speed. 'angle' is created by the parent
         self.speed = 0
 
     def update_ripple_sprite(self, radians, center_x, center_y):
         self.ripple_sprite.radians = radians
-        self.ripple_sprite.center_x = center_x
-        self.ripple_sprite.center_y = center_y
+        self.ripple_sprite.center_x = center_x + self.OFFSET * math.cos(radians)
+        self.ripple_sprite.center_y = center_y + self.OFFSET * math.sin(radians)
         self.ripple_sprite.alpha = math.fabs(self.vehicle_model.relative_speed() * 255)
 
         self.ripple_sprite.update()
@@ -74,6 +81,7 @@ class MyGame(arcade.Window):
     """
     Main application class.
     """
+    SIZES = {"small": 105, "medium": 179, "large": 368}
 
     def __init__(self, width, height, title):
         """
@@ -90,6 +98,9 @@ class MyGame(arcade.Window):
         file_path = os.path.dirname(os.path.abspath(__file__))
         os.chdir(file_path)
 
+        self.sim = Sim()
+
+
         # Variables that will hold sprite lists
         self.boat_sprite_list = None
 
@@ -105,6 +116,7 @@ class MyGame(arcade.Window):
         self.up_pressed = False
         self.down_pressed = False
 
+
     def setup(self):
         """ Set up the game and initialize the variables. """
 
@@ -115,10 +127,15 @@ class MyGame(arcade.Window):
         # Set up the player
         center_x = SCREEN_WIDTH / 2
         center_y = SCREEN_HEIGHT / 2
+        size_label = "medium"
+        self.sim.add_boat(x=center_x, y=center_y, length=self.SIZES[size_label])
         self.boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y)
-        self.boat_sprite.center_x = center_x
-        self.boat_sprite.center_y = center_y
         self.boat_sprite_list.append(self.boat_sprite)
+
+        self.sim.add_boat(x=center_x + 30, y=center_y, length=self.SIZES[size_label])
+        self.boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x + 30, center_y)
+        self.boat_sprite_list.append(self.boat_sprite)
+
 
     def on_draw(self):
         """

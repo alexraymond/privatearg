@@ -10,7 +10,7 @@ Made changes to make it more "boaty" are in order.
 def bound(value, low, high):
     return max(low, min(high, value))
 
-class VehicleModel:
+class BoatModel:
     def __init__(self, center_x=0, center_y=0, length=0):
         self.last_update = time.time()
 
@@ -70,7 +70,7 @@ class VehicleModel:
         self.max_speed = 40.0
 
         self.inertia = self.mass * self.inertiaScale  # equals mass
-        self.length = 2.5#length
+        self.length = 2.5 #length
         self.axleWeightRatioFront = self.cgToRearAxle / self.length  # Percentage of vehicle weight on front
         self.axleWeightRatioRear = self.cgToFrontAxle / self.length  # Percentage of vehicle weight on rear
 
@@ -99,11 +99,13 @@ class VehicleModel:
         # dt and fps calculation
         timestamp = time.time()
         dt = timestamp - self.last_update
+        if dt == 0.0:
+            return
         fps = 1.0 / dt
         self.last_update = timestamp
 
         # Process steering
-        steer_input = self.left - self.right
+        steer_input = self.right - self.left
         self.steering_input = self.smooth_steering(steer_input, dt)
         self.steering_input = self.safe_steering(self.steering_input)
         self.steering_angle = self.steering_input * self.maxSteer
@@ -171,12 +173,13 @@ class VehicleModel:
         self.vy += self.ay * dt
 
         self.abs_velocity = math.sqrt(self.vx**2 + self.vy**2)
-        print("absolute velocity: {}".format(self.abs_velocity))
+        # print("absolute velocity: {}".format(self.abs_velocity))
+        # print("absolute acceleration: {}".format(math.sqrt(self.ax**2 + self.ay**2)))
 
         # calculate rotational forces
         angularTorque = (frictionForceFront_cy + tractionForce_cy) * self.cgToFrontAxle - frictionForceRear_cy * self.cgToRearAxle
 
-        #  Sim gets unstable at very slow speeds, so just stop the car
+        #  Sim gets unstable at very slow speeds, so just stop the boat
         if math.fabs(self.abs_velocity) < 0.5 and throttle == 0:
             self.vx = self.vy = self.abs_velocity = 0
             angularTorque = self.yaw_rate = 0
