@@ -31,14 +31,16 @@ class BoatSprite(arcade.Sprite):
     SIZES = {"small": 105, "medium": 179, "large": 368}
     OFFSET = 15
 
-    def __init__(self, image, scale, center_x, center_y, size_label="medium"):
+    def __init__(self, image, scale, center_x, center_y, sim, size_label="medium"):
         """ Create vehicle model and setup sprites """
 
         # Call the parent init
         super().__init__(image, scale)
 
+        self.sim = sim
+
         self.length = self.SIZES[size_label]
-        self.vehicle_model = BoatModel(center_x, center_y, length=self.length)
+        self.vehicle_model = self.sim.add_boat(center_x, center_y, length=self.length)
 
         self.center_x = center_x
         self.center_y = center_y
@@ -53,6 +55,9 @@ class BoatSprite(arcade.Sprite):
 
         # Create a variable to hold our speed. 'angle' is created by the parent
         self.speed = 0
+
+    def ripple(self):
+        return self.ripple_sprite
 
     def update_ripple_sprite(self, radians, center_x, center_y):
         self.ripple_sprite.radians = radians
@@ -98,14 +103,11 @@ class MyGame(arcade.Window):
         file_path = os.path.dirname(os.path.abspath(__file__))
         os.chdir(file_path)
 
+        # Simulator common to all agents
         self.sim = Sim()
-
 
         # Variables that will hold sprite lists
         self.boat_sprite_list = None
-
-        # Set up the player info
-        self.boat_sprite = None
 
         # Set the background color
         arcade.set_background_color(arcade.color.BLACK)
@@ -115,7 +117,6 @@ class MyGame(arcade.Window):
         self.right_pressed = False
         self.up_pressed = False
         self.down_pressed = False
-
 
     def setup(self):
         """ Set up the game and initialize the variables. """
@@ -127,15 +128,8 @@ class MyGame(arcade.Window):
         # Set up the player
         center_x = SCREEN_WIDTH / 2
         center_y = SCREEN_HEIGHT / 2
-        size_label = "medium"
-        self.sim.add_boat(x=center_x, y=center_y, length=self.SIZES[size_label])
-        self.boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y)
-        self.boat_sprite_list.append(self.boat_sprite)
-
-        self.sim.add_boat(x=center_x + 30, y=center_y, length=self.SIZES[size_label])
-        self.boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x + 30, center_y)
-        self.boat_sprite_list.append(self.boat_sprite)
-
+        boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        self.boat_sprite_list.extend([boat_sprite, boat_sprite.ripple()])
 
     def on_draw(self):
         """
@@ -150,7 +144,6 @@ class MyGame(arcade.Window):
 
         # Draw all the sprites.
         self.boat_sprite_list.draw()
-        self.boat_sprite.ripple_sprite.draw()
 
     def on_update(self, delta_time):
         """ Movement and game logic """
@@ -158,16 +151,18 @@ class MyGame(arcade.Window):
         # Call update on all sprites (The sprites don't do much in this
         # example though.)
 
-        self.boat_sprite.vehicle_model.reset_inputs()
+        boat_sprite = self.boat_sprite_list[0]
+
+        boat_sprite.vehicle_model.reset_inputs()
 
         if self.up_pressed and not self.down_pressed:
-            self.boat_sprite.vehicle_model.throttle = 1.0
+            boat_sprite.vehicle_model.throttle = 1.0
         elif self.down_pressed and not self.up_pressed:
-            self.boat_sprite.vehicle_model.brake = 1.0
+            boat_sprite.vehicle_model.brake = 1.0
         if self.left_pressed and not self.right_pressed:
-            self.boat_sprite.vehicle_model.left = 1.0
+            boat_sprite.vehicle_model.left = 1.0
         elif self.right_pressed and not self.left_pressed:
-            self.boat_sprite.vehicle_model.right = 1.0
+            boat_sprite.vehicle_model.right = 1.0
 
         self.boat_sprite_list.update()
 
