@@ -106,8 +106,9 @@ class MyGame(arcade.Window):
         # Simulator common to all agents
         self.sim = Sim()
 
-        # Variables that will hold sprite lists
         self.boat_sprite_list = None
+
+        self.visual_elements_sprite_list = None
 
         # Set the background color
         arcade.set_background_color(arcade.color.BLACK)
@@ -131,6 +132,10 @@ class MyGame(arcade.Window):
         boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
         self.boat_sprite_list.extend([boat_sprite, boat_sprite.ripple()])
 
+        self.test_goal_x = random.randint(0, SCREEN_WIDTH)
+        self.test_goal_y = random.randint(0, SCREEN_HEIGHT)
+        boat_sprite.vehicle_model.set_goal(self.test_goal_x, self.test_goal_y)
+
     def on_draw(self):
         """
         Render the screen.
@@ -144,6 +149,7 @@ class MyGame(arcade.Window):
 
         # Draw all the sprites.
         self.boat_sprite_list.draw()
+        arcade.draw_circle_filled(self.test_goal_x, self.test_goal_y, 10, arcade.color.RED)
 
     def on_update(self, delta_time):
         """ Movement and game logic """
@@ -173,10 +179,10 @@ class MyGame(arcade.Window):
             self.up_pressed = True
         elif key == arcade.key.DOWN:
             self.down_pressed = True
-        elif key == arcade.key.LEFT:
-            self.left_pressed = True
-        elif key == arcade.key.RIGHT:
-            self.right_pressed = True
+        # elif key == arcade.key.LEFT:
+        #     self.left_pressed = True
+        # elif key == arcade.key.RIGHT:
+        #     self.right_pressed = True
 
     def on_key_release(self, key, modifiers):
         """Called when the user releases a key. """

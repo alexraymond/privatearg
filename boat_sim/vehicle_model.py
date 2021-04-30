@@ -10,10 +10,20 @@ Made changes to make it more "boaty" are in order.
 def bound(value, low, high):
     return max(low, min(high, value))
 
+def normalise(value, min_v, max_v):
+    return (value - min_v) / (max_v - min_v)
+
+
 class BoatModel:
     def __init__(self, center_x=0, center_y=0, length=0):
         self.last_update = time.time()
+        self.init_kinematics()
+        self.cx = center_x
+        self.cy = center_y
+        self.goal_x = None
+        self.goal_y = None
 
+    def init_kinematics(self):
         #########
         # INPUT #
         #########
@@ -25,9 +35,7 @@ class BoatModel:
         #########
         # STATS #
         #########
-        self.heading = math.pi/2
-        self.cx = center_x
-        self.cy = center_y
+        self.heading = 0 #math.pi/2
         self.vx = 0  # X component of velocity in world coordinates (m/s)
         self.vy = 0  # Y component of velocity in world coordinates (m/s)
         self.lvx = 0  # X component of velocity in local coordinates (m/s)
@@ -56,13 +64,13 @@ class BoatModel:
         self.cgHeight = 0.55  # Centre gravity height
         self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
         self.wheelWidth = 0.2  # Used for render only
-        self.tireGrip = 2.0  # How much grip tires have
-        self.lockGrip = 0.7  # % of grip available when wheel is locked
+        self.tireGrip = 100.0  # How much grip tires have
+        self.lockGrip = 1  # % of grip available when wheel is locked
         self.engineForce = -8000.0
         self.brakeForce = 12000.0
         self.eBrakeForce = self.brakeForce / 2.5
         self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
-        self.maxSteer = 0.6  # Maximum steering angle in radians
+        self.maxSteer = math.pi/2  # Maximum steering angle in radians
         self.cornerStiffnessFront = 5.0
         self.cornerStiffnessRear = 5.2
         self.airResist = 2.5  # air resistance (* vel)
@@ -73,6 +81,46 @@ class BoatModel:
         self.length = 2.5 #length
         self.axleWeightRatioFront = self.cgToRearAxle / self.length  # Percentage of vehicle weight on front
         self.axleWeightRatioRear = self.cgToFrontAxle / self.length  # Percentage of vehicle weight on rear
+
+    def set_goal(self, x, y):
+        self.goal_x = x
+        self.goal_y = y
+
+    def auto_steer(self):
+        if self.goal_x is None or self.goal_y is None:
+            return
+
+        gx = self.goal_x
+        gy = self.goal_y
+
+        desired_heading = math.atan2(gy - self.cy, gx - self.cx)
+        current_heading = self.heading + math.pi
+        current_heading %= 2*math.pi
+        current_heading = (current_heading + math.pi) % (2*math.pi) - math.pi
+
+        error = desired_heading - current_heading
+
+        def adjust_error(error):
+            if error < -math.pi:
+                e = 2*math.pi + error
+            elif error < math.pi:
+                e = error
+            else:
+                e = error - 2*math.pi
+            return e
+
+        error = adjust_error(error)
+
+        print("E{:.0f} = D{:.0f} - A{:.0f}".format(math.degrees(error), math.degrees(desired_heading), math.degrees(current_heading)))
+        k_p = 4  # Proportional gain constant.
+        if error < 0:
+            self.right = k_p * normalise(math.fabs(error), 0, 2*math.pi)
+            self.left = 0.0
+        else:
+            self.right = 0.0
+            self.left = k_p * normalise(math.fabs(error), 0, 2*math.pi)
+
+
 
     def reset_inputs(self):
         self.left = self.right = self.throttle = self.brake = 0.0
@@ -103,6 +151,9 @@ class BoatModel:
             return
         fps = 1.0 / dt
         self.last_update = timestamp
+
+        # Calculate steering input autonomously.
+        self.auto_steer()
 
         # Process steering
         steer_input = self.right - self.left
@@ -187,6 +238,7 @@ class BoatModel:
         angularAccel = angularTorque / self.inertia
         self.yaw_rate += angularAccel * dt
         self.heading += self.yaw_rate * dt
+        # self.heading %= 2*math.pi
 
         #  finally we can update position
         self.cx += self.vx * dt
