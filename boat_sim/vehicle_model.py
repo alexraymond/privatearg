@@ -1,27 +1,20 @@
 import math
 import time
-
+from utils import *
 """
 Car physics model adapted from: https://github.com/spacejack/carphysics2d/blob/master/public/js/Car.js
 Made changes to make it more "boaty" are in order.
 """
 
 
-def bound(value, low, high):
-    return max(low, min(high, value))
-
-def normalise(value, min_v, max_v):
-    return (value - min_v) / (max_v - min_v)
-
-
 class BoatModel:
-    def __init__(self, center_x=0, center_y=0, length=0):
+    def __init__(self, sim, boat_id, position = (0,0), length=0):
+        self.sim = sim
+        self.boat_id = boat_id
         self.last_update = time.time()
         self.init_kinematics()
-        self.cx = center_x
-        self.cy = center_y
-        self.goal_x = None
-        self.goal_y = None
+        self.position = position
+        self.goal = None
 
     def init_kinematics(self):
         #########
@@ -83,17 +76,16 @@ class BoatModel:
         self.axleWeightRatioRear = self.cgToFrontAxle / self.length  # Percentage of vehicle weight on rear
 
     def set_goal(self, x, y):
-        self.goal_x = x
-        self.goal_y = y
+        self.goal = (x, y)
 
     def auto_steer(self):
-        if self.goal_x is None or self.goal_y is None:
+        if self.goal is None:
             return
 
-        gx = self.goal_x
-        gy = self.goal_y
+        gx, gy = self.goal
+        cx, cy = self.position
 
-        desired_heading = math.atan2(gy - self.cy, gx - self.cx)
+        desired_heading = math.atan2(gy - cy, gx - cx)
         current_heading = self.heading + math.pi
         current_heading %= 2*math.pi
         current_heading = (current_heading + math.pi) % (2*math.pi) - math.pi
@@ -111,16 +103,34 @@ class BoatModel:
 
         error = adjust_error(error)
 
-        print("E{:.0f} = D{:.0f} - A{:.0f}".format(math.degrees(error), math.degrees(desired_heading), math.degrees(current_heading)))
-        k_p = 4  # Proportional gain constant.
+        k_p = 5  # Proportional gain constant.
         if error < 0:
-            self.right = k_p * normalise(math.fabs(error), 0, 2*math.pi)
+            self.right = bound(k_p * normalise(math.fabs(error), 0, 2*math.pi), 0, 1)
             self.left = 0.0
         else:
             self.right = 0.0
-            self.left = k_p * normalise(math.fabs(error), 0, 2*math.pi)
+            self.left = bound(k_p * normalise(math.fabs(error), 0, 2*math.pi), 0, 1)
 
+    def auto_accelerate(self):
+        if self.goal is None:
+            return
 
+        gx, gy = self.goal
+        cx, cy = self.position
+
+        # Distance is the error
+        distance = math.dist((gx, gy), (cx, cy))
+
+        k_p = 5  # Proportional gain constant.
+        if distance < 100:
+            distance = 0.001 if distance == 0.0 else distance  # Avoid dividing by zero.
+            self.brake = bound(k_p * (1.0/distance), 0, 1)
+            self.throttle = 0
+        else:
+            self.throttle = bound(k_p * distance, 0, 1)
+            self.brake = 0
+
+        # print("Distance: {} | Throttle: {} | Brake: {}".format(distance, self.throttle, self.brake))
 
     def reset_inputs(self):
         self.left = self.right = self.throttle = self.brake = 0.0
@@ -143,7 +153,7 @@ class BoatModel:
         steer = steer_input * (1.0 - (abs_vel / 280.0))
         return steer
 
-    def calculate_forces(self):
+    def simulate_kinematics(self):
         # dt and fps calculation
         timestamp = time.time()
         dt = timestamp - self.last_update
@@ -154,6 +164,8 @@ class BoatModel:
 
         # Calculate steering input autonomously.
         self.auto_steer()
+        # Calculate throttle/brake input autonomously.
+        self.auto_accelerate()
 
         # Process steering
         steer_input = self.right - self.left
@@ -241,8 +253,10 @@ class BoatModel:
         # self.heading %= 2*math.pi
 
         #  finally we can update position
-        self.cx += self.vx * dt
-        self.cy += self.vy * dt
+        cx, cy = self.position
+        cx += self.vx * dt
+        cy += self.vy * dt
+        self.position = (cx, cy)
 
     def relative_speed(self):
         return bound(self.abs_velocity / self.max_speed, 0.0, 1.0)

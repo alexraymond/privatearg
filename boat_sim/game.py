@@ -12,11 +12,13 @@ import arcade
 import os
 import math
 import random
+import time
+import numpy as np
 
 from vehicle_model import BoatModel
 from sim import Sim
 
-SPRITE_SCALING = 0.5
+SPRITE_SCALING = 0.25
 
 SCREEN_WIDTH = 1080
 SCREEN_HEIGHT = 1080
@@ -40,7 +42,7 @@ class BoatSprite(arcade.Sprite):
         self.sim = sim
 
         self.length = self.SIZES[size_label]
-        self.vehicle_model = self.sim.add_boat(center_x, center_y, length=self.length)
+        self.vehicle_model = self.sim.add_boat(self.sim, center_x, center_y, length=self.length)
 
         self.center_x = center_x
         self.center_y = center_y
@@ -69,15 +71,14 @@ class BoatSprite(arcade.Sprite):
 
     def update(self):
         # Update vehicle physics
-        self.vehicle_model.calculate_forces()
+        self.vehicle_model.simulate_kinematics()
 
         # Rotate the ship
         self.radians = self.vehicle_model.heading
         # print("angle: {}".format(self.angle))
 
         # Use math to find our change based on our speed and angle
-        self.center_x = self.vehicle_model.cx
-        self.center_y = self.vehicle_model.cy
+        self.center_x, self.center_y = self.vehicle_model.position
 
         self.update_ripple_sprite(self.radians, self.center_x, self.center_y)
 
@@ -113,11 +114,18 @@ class MyGame(arcade.Window):
         # Set the background color
         arcade.set_background_color(arcade.color.BLACK)
 
+        # Config
+        self.draw_potential_field = True
+
         # Human control
         self.left_pressed = False
         self.right_pressed = False
         self.up_pressed = False
         self.down_pressed = False
+
+        self.timestamp = time.time()
+
+
 
     def setup(self):
         """ Set up the game and initialize the variables. """
@@ -141,6 +149,11 @@ class MyGame(arcade.Window):
         Render the screen.
         """
 
+        timestamp = time.time()
+        fps = 1.0 / (timestamp - self.timestamp)
+        self.timestamp = timestamp
+        print("FPS: ", fps)
+
         # This command has to happen before we start drawing
         arcade.start_render()
 
@@ -150,6 +163,18 @@ class MyGame(arcade.Window):
         # Draw all the sprites.
         self.boat_sprite_list.draw()
         arcade.draw_circle_filled(self.test_goal_x, self.test_goal_y, 10, arcade.color.RED)
+
+        # Draw potential field.
+        if self.draw_potential_field:
+            resolution = 30
+            for i in range(0, SCREEN_WIDTH, resolution):
+                for j in range(0, SCREEN_HEIGHT, resolution):
+                    v = self.sim.get_velocity((i, j), 0)
+                    #x1y1, x2y2
+                    size = 20
+                    x2 = i + (v[0] * size)
+                    y2 = j + (v[1] * size)
+                    arcade.draw_line(i, j, x2, y2, arcade.color.BLACK, 2)
 
     def on_update(self, delta_time):
         """ Movement and game logic """
