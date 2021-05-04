@@ -107,15 +107,16 @@ class MyGame(arcade.Window):
         # Simulator common to all agents
         self.sim = Sim()
 
-        self.boat_sprite_list = None
+        self.all_sprite_list = arcade.SpriteList()
 
-        self.visual_elements_sprite_list = None
+        self.boat_sprites = []
 
         # Set the background color
         arcade.set_background_color(arcade.color.BLACK)
 
         # Config
         self.draw_potential_field = True
+        self.draw_goals = True
 
         # Human control
         self.left_pressed = False
@@ -131,18 +132,28 @@ class MyGame(arcade.Window):
         """ Set up the game and initialize the variables. """
 
         # Sprite lists
-        self.boat_sprite_list = arcade.SpriteList()
         self.background = arcade.load_texture("images/water_background.png")
 
-        # Set up the player
-        center_x = SCREEN_WIDTH / 2
-        center_y = SCREEN_HEIGHT / 2
-        boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
-        self.boat_sprite_list.extend([boat_sprite, boat_sprite.ripple()])
+        # Set up boat A
+        center_x = 300
+        center_y = 300
+        boat_sprite_a = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        goal_x = random.randint(500, SCREEN_WIDTH)
+        goal_y = random.randint(600, SCREEN_HEIGHT)
+        boat_sprite_a.vehicle_model.set_goal(goal_x, goal_y)
 
-        self.test_goal_x = random.randint(0, SCREEN_WIDTH)
-        self.test_goal_y = random.randint(0, SCREEN_HEIGHT)
-        boat_sprite.vehicle_model.set_goal(self.test_goal_x, self.test_goal_y)
+        # Set up boat B
+        center_x = 750
+        center_y = 750
+        boat_sprite_b = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        goal_x = random.randint(0, 400)
+        goal_y = random.randint(0, 400)
+        boat_sprite_b.vehicle_model.set_goal(goal_x, goal_y)
+
+        self.boat_sprites = []
+        self.boat_sprites.extend([boat_sprite_a, boat_sprite_b])
+
+        self.all_sprite_list.extend([boat_sprite_a, boat_sprite_b, boat_sprite_a.ripple(), boat_sprite_b.ripple()])
 
     def on_draw(self):
         """
@@ -152,7 +163,7 @@ class MyGame(arcade.Window):
         timestamp = time.time()
         fps = 1.0 / (timestamp - self.timestamp)
         self.timestamp = timestamp
-        print("FPS: ", fps)
+        # print("FPS: ", fps)
 
         # This command has to happen before we start drawing
         arcade.start_render()
@@ -161,20 +172,48 @@ class MyGame(arcade.Window):
         arcade.draw_lrwh_rectangle_textured(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, self.background)
 
         # Draw all the sprites.
-        self.boat_sprite_list.draw()
-        arcade.draw_circle_filled(self.test_goal_x, self.test_goal_y, 10, arcade.color.RED)
+        self.all_sprite_list.draw()
+        i = 1
+
+        # Draw goals and indices.
+        if self.draw_goals:
+            for boat in self.boat_sprites:
+                boat_x, boat_y = boat.vehicle_model.position
+                goal_x, goal_y = boat.vehicle_model.goal
+                arcade.draw_circle_filled(goal_x, goal_y, 10, arcade.color.RED)
+                arcade.draw_text(str(i), goal_x, goal_y, arcade.color.WHITE)
+                arcade.draw_text(str(i), boat_x, boat_y, arcade.color.RED)
+                i += 1
+
 
         # Draw potential field.
         if self.draw_potential_field:
             resolution = 30
-            for i in range(0, SCREEN_WIDTH, resolution):
-                for j in range(0, SCREEN_HEIGHT, resolution):
-                    v = self.sim.get_velocity((i, j), 0)
-                    #x1y1, x2y2
+            for x1 in range(0, SCREEN_WIDTH, resolution):
+                for y1 in range(0, SCREEN_HEIGHT, resolution):
+                    v = self.sim.get_velocity((x1, y1), 0)
+                    line_thickness = 1.5
                     size = 20
-                    x2 = i + (v[0] * size)
-                    y2 = j + (v[1] * size)
-                    arcade.draw_line(i, j, x2, y2, arcade.color.BLACK, 2)
+                    x2 = x1 + (v[0] * size)
+                    y2 = y1 + (v[1] * size)
+                    arcade.draw_line(x1, y1, x2, y2, arcade.color.BLACK, line_thickness)
+
+                    # Draw arrowheads.
+                    head_size = 5
+                    dx = x1 - x2
+                    dy = y1 - y2
+                    norm = math.sqrt(dx * dx + dy * dy)
+                    udx = dx/norm  # Normalised x.
+                    udy = dy/norm
+                    angle = math.pi/6
+                    ax = udx * math.cos(angle) - udy * math.sin(angle)
+                    ay = udx * math.sin(angle) + udy * math.cos(angle)
+                    bx = udx * math.cos(angle) + udy * math.sin(angle)
+                    by = -udx * math.sin(angle) + udy * math.cos(angle)
+                    arcade.draw_line(x2, y2, x2 + head_size * ax, y2 + head_size * ay, arcade.color.BLACK, line_thickness)
+                    arcade.draw_line(x2, y2, x2 + head_size * bx, y2 + head_size * by, arcade.color.BLACK, line_thickness)
+
+
 
     def on_update(self, delta_time):
         """ Movement and game logic """
@@ -182,7 +221,7 @@ class MyGame(arcade.Window):
         # Call update on all sprites (The sprites don't do much in this
         # example though.)
 
-        boat_sprite = self.boat_sprite_list[0]
+        boat_sprite = self.all_sprite_list[0]
 
         boat_sprite.vehicle_model.reset_inputs()
 
@@ -195,7 +234,7 @@ class MyGame(arcade.Window):
         elif self.right_pressed and not self.left_pressed:
             boat_sprite.vehicle_model.right = 1.0
 
-        self.boat_sprite_list.update()
+        self.all_sprite_list.update()
 
     def on_key_press(self, key, modifiers):
         """Called whenever a key is pressed. """

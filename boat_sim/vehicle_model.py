@@ -59,7 +59,7 @@ class BoatModel:
         self.wheelWidth = 0.2  # Used for render only
         self.tireGrip = 100.0  # How much grip tires have
         self.lockGrip = 1  # % of grip available when wheel is locked
-        self.engineForce = -8000.0
+        self.engineForce = -4000.0
         self.brakeForce = 12000.0
         self.eBrakeForce = self.brakeForce / 2.5
         self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
@@ -78,14 +78,24 @@ class BoatModel:
     def set_goal(self, x, y):
         self.goal = (x, y)
 
-    def auto_steer(self):
+    def auto_steer_potential_field(self):
+        if self.goal is None:
+            return
+
+        vx, vy = self.sim.get_velocity(self.position, self.boat_id)
+        heading = math.atan2(vy, vx)
+        self.auto_steer(heading)
+
+
+
+    def auto_steer(self, desired_heading):
         if self.goal is None:
             return
 
         gx, gy = self.goal
         cx, cy = self.position
 
-        desired_heading = math.atan2(gy - cy, gx - cx)
+        # desired_heading = math.atan2(gy - cy, gx - cx)
         current_heading = self.heading + math.pi
         current_heading %= 2*math.pi
         current_heading = (current_heading + math.pi) % (2*math.pi) - math.pi
@@ -163,7 +173,7 @@ class BoatModel:
         self.last_update = timestamp
 
         # Calculate steering input autonomously.
-        self.auto_steer()
+        self.auto_steer_potential_field()
         # Calculate throttle/brake input autonomously.
         self.auto_accelerate()
 

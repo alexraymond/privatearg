@@ -15,7 +15,8 @@ class Sim:
         """
         :return: True if vehicle with id_a concedes to id_b.
         """
-        return id_a > id_b
+        # print("{} > {}? {}".format(id_a, id_b, id_a < id_b))
+        return id_a < id_b
 
     def get_velocity(self, position, vehicle_id):
         v = np.zeros(2, dtype=np.float32)
@@ -38,11 +39,14 @@ class Sim:
         def velocity_for_avoidance(my_position, their_position):
             tx, ty = their_position
             mx, my = my_position
-            max_distance = 300
-            min_distance = 150
+            max_distance = 200
+            min_distance = 100
 
             heading = math.atan2(my - ty, mx - tx)
             distance = math.dist((tx, ty), (mx, my))
+
+            if distance == 0:
+                distance = 0.01
 
             # Distance factor: 0 if distance > max, increases to 1 (where distance == min)
             df = 0 if distance > max_distance else bound(min_distance / distance, 0.0, 1.0)
