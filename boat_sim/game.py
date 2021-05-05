@@ -20,8 +20,8 @@ from sim import Sim
 
 SPRITE_SCALING = 0.25
 
-SCREEN_WIDTH = 1080
-SCREEN_HEIGHT = 1080
+SCREEN_WIDTH = 1600
+SCREEN_HEIGHT = 1600
 SCREEN_TITLE = "Boat Sim"
 
 MOVEMENT_SPEED = 5
@@ -115,7 +115,7 @@ class MyGame(arcade.Window):
         arcade.set_background_color(arcade.color.BLACK)
 
         # Config
-        self.draw_potential_field = True
+        self.draw_potential_field = False
         self.draw_goals = True
 
         # Human control
@@ -126,14 +126,97 @@ class MyGame(arcade.Window):
 
         self.timestamp = time.time()
 
+    def setup_borders(self, num_boats):
+        """
+        Boats will have one of 4 different colours, associated to each edge of the screen.
+        The colour represents the boat's destination.
+        1: blue -> left
+        2: red -> top
+        3: green -> bottom
+        4: yellow -> right
+        :param num_boats: Number of boats to be generated.
+        :return:
+        """
+        border_thickness = int(SCREEN_WIDTH / 20)
+        min_distance_between_goals = 50
+        min_distance_between_starting_positions = 25
+        goals = []
+        starting_positions = []
+        colour = 0
+        side = 0
+        angle = 0
 
+        def too_close(position, container, threshold):
+            for p in container:
+                if math.dist(position, p) < threshold:
+                    return True
+            return False
 
-    def setup(self):
-        """ Set up the game and initialize the variables. """
+        for i in range(num_boats):
+            colour = random.randint(1, 4)
+            side = colour
+            # Get a starting side different from that colour.
+            while side == colour:
+                side = random.randint(1, 4)
+            while True:
+                if colour == 1: # Blue (left)
+                    goal_x = random.randint(0, border_thickness)
+                    goal_y = random.randint(0, SCREEN_HEIGHT)
+                elif colour == 2: # Red (top)
+                    goal_x = random.randint(0, SCREEN_WIDTH)
+                    goal_y = random.randint(SCREEN_HEIGHT - border_thickness, SCREEN_HEIGHT)
+                elif colour == 3: # Green (bottom)
+                    goal_x = random.randint(0, SCREEN_WIDTH)
+                    goal_y = random.randint(0, border_thickness)
+                else: # Yellow (right)
+                    goal_x = random.randint(SCREEN_WIDTH - border_thickness, SCREEN_WIDTH)
+                    goal_y = random.randint(0, SCREEN_HEIGHT)
+                # Ensure minimum distance from other goals.
+                if not too_close((goal_x, goal_y), goals, min_distance_between_goals):
+                    break
+            
+            while True:
+                if side == 1:  # Blue (left)
+                    start_x = random.randint(0, border_thickness)
+                    start_y = random.randint(0, SCREEN_HEIGHT)
+                    angle = math.pi
+                elif side == 2:  # Red (top)
+                    start_x = random.randint(0, SCREEN_WIDTH)
+                    start_y = random.randint(SCREEN_HEIGHT - border_thickness, SCREEN_HEIGHT)
+                    angle = math.pi/2
+                elif side == 3:  # Green (bottom)
+                    start_x = random.randint(0, SCREEN_WIDTH)
+                    start_y = random.randint(0, border_thickness)
+                    angle = -math.pi/2
+                else:  # Yellow (right)
+                    start_x = random.randint(SCREEN_WIDTH - border_thickness, SCREEN_WIDTH)
+                    start_y = random.randint(0, SCREEN_HEIGHT)
+                    angle = 0
+                # Ensure minimum distance from other starts.
+                if not too_close((start_x, start_y), starting_positions, min_distance_between_starting_positions):
+                    break
 
-        # Sprite lists
-        self.background = arcade.load_texture("images/water_background.png")
+            boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, start_x, start_y, self.sim)
+            boat_sprite.vehicle_model.set_goal(goal_x, goal_y)
+            boat_sprite.vehicle_model.heading = angle
+            goals.append((goal_x, goal_y))
+            starting_positions.append((start_x, start_y))
+            boat_sprite.vehicle_model.goal_colour = colour
+            self.boat_sprites.append(boat_sprite)
+            self.all_sprite_list.extend([boat_sprite, boat_sprite.ripple()])
 
+    def setup_random(self, num_boats):
+        for i in range(num_boats):
+            cx = random.randint(0, SCREEN_WIDTH)
+            cy = random.randint(0, SCREEN_HEIGHT)
+            boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, cx, cy, self.sim)
+            goal_x = random.randint(0, SCREEN_WIDTH)
+            goal_y = random.randint(0, SCREEN_HEIGHT)
+            boat_sprite.vehicle_model.set_goal(goal_x, goal_y)
+            self.boat_sprites.append(boat_sprite)
+            self.all_sprite_list.extend([boat_sprite, boat_sprite.ripple()])
+
+    def setup_manual(self):
         # Set up boat A
         center_x = 300
         center_y = 300
@@ -154,6 +237,15 @@ class MyGame(arcade.Window):
         self.boat_sprites.extend([boat_sprite_a, boat_sprite_b])
 
         self.all_sprite_list.extend([boat_sprite_a, boat_sprite_b, boat_sprite_a.ripple(), boat_sprite_b.ripple()])
+
+    def setup(self):
+        """ Set up the game and initialize the variables. """
+
+        # Sprite lists
+        self.background = arcade.load_texture("images/water_background.png")
+        self.setup_borders(40)
+
+
 
     def on_draw(self):
         """
@@ -178,13 +270,24 @@ class MyGame(arcade.Window):
         # Draw goals and indices.
         if self.draw_goals:
             for boat in self.boat_sprites:
+                colour_id = boat.vehicle_model.goal_colour
+                if colour_id == 1:
+                    colour = arcade.color.BLUE
+                elif colour_id == 2:
+                    colour = arcade.color.RED
+                elif colour_id == 3:
+                    colour = arcade.color.GREEN
+                elif colour_id == 4:
+                    colour = arcade.color.YELLOW
+                else:
+                    colour = arcade.color.BLACK
                 boat_x, boat_y = boat.vehicle_model.position
                 goal_x, goal_y = boat.vehicle_model.goal
-                arcade.draw_circle_filled(goal_x, goal_y, 10, arcade.color.RED)
-                arcade.draw_text(str(i), goal_x, goal_y, arcade.color.WHITE)
-                arcade.draw_text(str(i), boat_x, boat_y, arcade.color.RED)
+                arcade.draw_circle_filled(goal_x, goal_y, 10, colour)
+                text_colour = arcade.color.WHITE if colour_id < 2 else arcade.color.BLACK
+                arcade.draw_text(str(i), goal_x, goal_y, text_colour, 15)
+                arcade.draw_text(str(i), boat_x, boat_y, colour, 15)
                 i += 1
-
 
         # Draw potential field.
         if self.draw_potential_field:
@@ -192,11 +295,11 @@ class MyGame(arcade.Window):
             for x1 in range(0, SCREEN_WIDTH, resolution):
                 for y1 in range(0, SCREEN_HEIGHT, resolution):
                     v = self.sim.get_velocity((x1, y1), 0)
-                    line_thickness = 1.5
+                    thickness = 1.5
                     size = 20
                     x2 = x1 + (v[0] * size)
                     y2 = y1 + (v[1] * size)
-                    arcade.draw_line(x1, y1, x2, y2, arcade.color.BLACK, line_thickness)
+                    arcade.draw_line(x1, y1, x2, y2, arcade.color.BLACK, thickness)
 
                     # Draw arrowheads.
                     head_size = 5
@@ -210,8 +313,8 @@ class MyGame(arcade.Window):
                     ay = udx * math.sin(angle) + udy * math.cos(angle)
                     bx = udx * math.cos(angle) + udy * math.sin(angle)
                     by = -udx * math.sin(angle) + udy * math.cos(angle)
-                    arcade.draw_line(x2, y2, x2 + head_size * ax, y2 + head_size * ay, arcade.color.BLACK, line_thickness)
-                    arcade.draw_line(x2, y2, x2 + head_size * bx, y2 + head_size * by, arcade.color.BLACK, line_thickness)
+                    arcade.draw_line(x2, y2, x2 + head_size * ax, y2 + head_size * ay, arcade.color.BLACK, thickness)
+                    arcade.draw_line(x2, y2, x2 + head_size * bx, y2 + head_size * by, arcade.color.BLACK, thickness)
 
 
 

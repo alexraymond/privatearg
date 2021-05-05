@@ -36,11 +36,9 @@ class Sim:
             v = np.array([df * np.cos(desired_heading), df * np.sin(desired_heading)])
             return v
 
-        def velocity_for_avoidance(my_position, their_position):
+        def velocity_for_avoidance(my_position, their_position, min_distance, max_distance):
             tx, ty = their_position
             mx, my = my_position
-            max_distance = 200
-            min_distance = 100
 
             heading = math.atan2(my - ty, mx - tx)
             distance = math.dist((tx, ty), (mx, my))
@@ -48,8 +46,12 @@ class Sim:
             if distance == 0:
                 distance = 0.01
 
-            # Distance factor: 0 if distance > max, increases to 1 (where distance == min)
-            df = 0 if distance > max_distance else bound(min_distance / distance, 0.0, 1.0)
+            # # Special case: if behind, only consider min distance.
+            # if heading > (math.pi - math.pi/2) and heading < (math.pi + math.pi/2):  # 135 to 225
+            #     df = 0 if distance > min_distance else bound(min_distance / distance, 0.0, 1.5)
+
+            # else: # Distance factor: 0 if distance > max, increases to 1 (where distance == min)
+            df = 0 if distance > max_distance else bound(min_distance / distance, 0.0, 1.5)
             v = np.array([df * np.cos(heading), df * np.sin(heading)])
             return v
 
@@ -59,9 +61,10 @@ class Sim:
             their_id = vehicle.boat_id
             if their_id == vehicle_id:
                 continue
-            if self.concedes(vehicle_id, their_id):
-                their_position = self.vehicles[their_id].position
-                v += velocity_for_avoidance(position, their_position)
+            min_distance = 50
+            max_distance = 500 if self.concedes(vehicle_id, their_id) else min_distance
+            their_position = self.vehicles[their_id].position
+            v += velocity_for_avoidance(position, their_position, min_distance, max_distance)
 
         return v
 

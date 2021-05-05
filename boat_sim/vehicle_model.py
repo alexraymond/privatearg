@@ -15,6 +15,7 @@ class BoatModel:
         self.init_kinematics()
         self.position = position
         self.goal = None
+        self.goal_colour = 0
 
     def init_kinematics(self):
         #########
@@ -57,18 +58,18 @@ class BoatModel:
         self.cgHeight = 0.55  # Centre gravity height
         self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
         self.wheelWidth = 0.2  # Used for render only
-        self.tireGrip = 100.0  # How much grip tires have
+        self.tireGrip = 10000.0  # How much grip tires have
         self.lockGrip = 1  # % of grip available when wheel is locked
-        self.engineForce = -4000.0
-        self.brakeForce = 12000.0
+        self.engineForce = -2000.0
+        self.brakeForce = 1000.0
         self.eBrakeForce = self.brakeForce / 2.5
         self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
-        self.maxSteer = math.pi/2  # Maximum steering angle in radians
+        self.maxSteer = math.pi/4  # Maximum steering angle in radians
         self.cornerStiffnessFront = 5.0
         self.cornerStiffnessRear = 5.2
         self.airResist = 2.5  # air resistance (* vel)
         self.rollResist = 8.0  # rolling resistance force (* vel)
-        self.max_speed = 40.0
+        self.max_speed = 20.0
 
         self.inertia = self.mass * self.inertiaScale  # equals mass
         self.length = 2.5 #length
@@ -85,8 +86,8 @@ class BoatModel:
         vx, vy = self.sim.get_velocity(self.position, self.boat_id)
         heading = math.atan2(vy, vx)
         self.auto_steer(heading)
-
-
+        norm = math.sqrt(vx**2 + vy**2)
+        k_p = 2
 
     def auto_steer(self, desired_heading):
         if self.goal is None:
@@ -193,10 +194,10 @@ class BoatModel:
 
         # Weight on axles based on centre of gravity and weight shift due to forward/reverse acceleration
         axleWeightFront = self.mass * (
-                    self.axleWeightRatioFront * self.gravity - self.weightTransfer * self.lax * self.cgHeight / self.length)
+                self.axleWeightRatioFront * self.gravity - self.weightTransfer * self.lax * self.cgHeight / self.length)
 
         axleWeightRear = self.mass * (
-                    self.axleWeightRatioRear * self.gravity + self.weightTransfer * self.lax * self.cgHeight / self.length)
+                self.axleWeightRatioRear * self.gravity + self.weightTransfer * self.lax * self.cgHeight / self.length)
 
         # Resulting velocity of the wheels as result of the yaw rate of the car body.
         # v = yawrate * r where r is distance from axle to CG and yawRate (angular velocity) in rad/s.
@@ -258,7 +259,13 @@ class BoatModel:
             angularTorque = self.yaw_rate = 0
 
         angularAccel = angularTorque / self.inertia
+        # Workaround to avoid jittery movement in beginning of simulation
+        angularAccel = bound(angularAccel, -1.0, 1.0)
+
         self.yaw_rate += angularAccel * dt
+        # Workaround to avoid powerslides at low speeds.
+        if math.fabs(self.abs_velocity < 2):
+            self.yaw_rate = 0.0
         self.heading += self.yaw_rate * dt
         # self.heading %= 2*math.pi
 
