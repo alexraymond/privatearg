@@ -58,13 +58,13 @@ class BoatModel:
         self.cgHeight = 0.55  # Centre gravity height
         self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
         self.wheelWidth = 0.2  # Used for render only
-        self.tireGrip = 10000.0  # How much grip tires have
+        self.tireGrip = 100.0  # How much grip tires have
         self.lockGrip = 1  # % of grip available when wheel is locked
         self.engineForce = -2000.0
         self.brakeForce = 1000.0
         self.eBrakeForce = self.brakeForce / 2.5
         self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
-        self.maxSteer = math.pi/4  # Maximum steering angle in radians
+        self.maxSteer = math.pi/2  # Maximum steering angle in radians
         self.cornerStiffnessFront = 5.0
         self.cornerStiffnessRear = 5.2
         self.airResist = 2.5  # air resistance (* vel)
@@ -264,7 +264,7 @@ class BoatModel:
 
         self.yaw_rate += angularAccel * dt
         # Workaround to avoid powerslides at low speeds.
-        if math.fabs(self.abs_velocity < 2):
+        if math.fabs(self.abs_velocity < 5):
             self.yaw_rate = 0.0
         self.heading += self.yaw_rate * dt
         # self.heading %= 2*math.pi

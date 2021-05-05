@@ -20,8 +20,8 @@ from sim import Sim
 
 SPRITE_SCALING = 0.25
 
-SCREEN_WIDTH = 1600
-SCREEN_HEIGHT = 1600
+SCREEN_WIDTH = 1000
+SCREEN_HEIGHT = 1000
 SCREEN_TITLE = "Boat Sim"
 
 MOVEMENT_SPEED = 5
@@ -115,8 +115,9 @@ class MyGame(arcade.Window):
         arcade.set_background_color(arcade.color.BLACK)
 
         # Config
-        self.draw_potential_field = False
+        self.draw_potential_field = True
         self.draw_goals = True
+        self.draw_avoidance_boundaries = True
 
         # Human control
         self.left_pressed = False
@@ -137,7 +138,7 @@ class MyGame(arcade.Window):
         :param num_boats: Number of boats to be generated.
         :return:
         """
-        border_thickness = int(SCREEN_WIDTH / 20)
+        border_thickness = int(SCREEN_WIDTH / 10)
         min_distance_between_goals = 50
         min_distance_between_starting_positions = 25
         goals = []
@@ -232,6 +233,30 @@ class MyGame(arcade.Window):
         goal_x = random.randint(0, 400)
         goal_y = random.randint(0, 400)
         boat_sprite_b.vehicle_model.set_goal(goal_x, goal_y)
+        boat_sprite_b.vehicle_model.heading = -3*math.pi/4
+
+        self.boat_sprites = []
+        self.boat_sprites.extend([boat_sprite_a, boat_sprite_b])
+
+        self.all_sprite_list.extend([boat_sprite_a, boat_sprite_b, boat_sprite_a.ripple(), boat_sprite_b.ripple()])
+
+    def setup_manual2(self):
+        # Set up boat A
+        center_x = 300
+        center_y = 300
+        boat_sprite_a = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        goal_x = random.randint(500, SCREEN_WIDTH)
+        goal_y = random.randint(600, SCREEN_HEIGHT)
+        boat_sprite_a.vehicle_model.set_goal(goal_x, goal_y)
+
+        # Set up boat B
+        center_x = 400
+        center_y = 400
+        boat_sprite_b = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        goal_x = random.randint(500, SCREEN_WIDTH)
+        goal_y = random.randint(600, SCREEN_HEIGHT)
+        boat_sprite_b.vehicle_model.set_goal(goal_x, goal_y)
+        boat_sprite_b.vehicle_model.heading = math.pi/4
 
         self.boat_sprites = []
         self.boat_sprites.extend([boat_sprite_a, boat_sprite_b])
@@ -243,9 +268,8 @@ class MyGame(arcade.Window):
 
         # Sprite lists
         self.background = arcade.load_texture("images/water_background.png")
-        self.setup_borders(40)
-
-
+        self.setup_borders(20)
+        # self.setup_manual2()
 
     def on_draw(self):
         """
@@ -316,7 +340,14 @@ class MyGame(arcade.Window):
                     arcade.draw_line(x2, y2, x2 + head_size * ax, y2 + head_size * ay, arcade.color.BLACK, thickness)
                     arcade.draw_line(x2, y2, x2 + head_size * bx, y2 + head_size * by, arcade.color.BLACK, thickness)
 
-
+        if self.draw_avoidance_boundaries:
+            for boat in self.boat_sprites:
+                cx, cy = boat.position
+                min_distance = self.sim.avoidance_min_distance
+                max_distance = self.sim.avoidance_max_distance
+                arcade.draw_circle_outline(cx, cy, min_distance, arcade.color.WHITE, 1)
+                arc_angle = math.degrees(boat.vehicle_model.heading) + 90
+                arcade.draw_arc_outline(cx, cy, max_distance, max_distance, arcade.color.WHITE, 0, 180, 1.5, arc_angle, 30)
 
     def on_update(self, delta_time):
         """ Movement and game logic """
