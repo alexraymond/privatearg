@@ -10,8 +10,9 @@ class Sim:
     def __init__(self):
         # List of all BoatModels present.
         self.vehicles = []
-        self.avoidance_min_distance = 50
+        self.avoidance_min_distance = 80
         self.avoidance_max_distance = 200
+        self.only_frontal_avoidance = True
 
     def concedes(self, id_a, id_b):
         """
@@ -42,6 +43,8 @@ class Sim:
             tx, ty = other_vehicle.position
             mx, my = my_position
 
+            self.only_frontal_avoidance = True
+
             heading_from_obstacle = math.atan2(my - ty, mx - tx)
             heading_to_obstacle = math.atan2(ty - my, tx - mx)
             heading_to_obstacle = (heading_to_obstacle + (4*math.pi))
@@ -54,7 +57,7 @@ class Sim:
                 distance = 0.01
 
             # Special case: if behind, only consider min distance.
-            if relative_heading > math.pi/2 and relative_heading < 3*math.pi/2 :
+            if self.only_frontal_avoidance and math.pi / 2 < relative_heading < 3 * math.pi / 2:
                 df = 0 if distance > min_distance else bound(min_distance / distance, 0.5, 1.5)
 
             else: # Distance factor: 0 if distance > max, increases to 1 (where distance == min)
@@ -76,8 +79,8 @@ class Sim:
 
         return v
 
-    def add_boat(self, sim, x, y, length):
+    def add_boat(self, sim, x, y, boat_type):
         boat_id = len(self.vehicles)
-        boat = BoatModel(sim, boat_id, position=(x,y), length=length)
+        boat = BoatModel(sim, boat_id, position=(x,y), boat_type=boat_type)
         self.vehicles.append(boat)
         return boat

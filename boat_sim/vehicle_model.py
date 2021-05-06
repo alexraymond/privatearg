@@ -8,14 +8,15 @@ Made changes to make it more "boaty" are in order.
 
 
 class BoatModel:
-    def __init__(self, sim, boat_id, position = (0,0), length=0):
+    def __init__(self, sim, boat_id, position = (0,0), boat_type="medium"):
         self.sim = sim
         self.boat_id = boat_id
         self.last_update = time.time()
-        self.init_kinematics()
         self.position = position
         self.goal = None
         self.goal_colour = 0
+        self.boat_type = boat_type
+        self.init_kinematics()
 
     def init_kinematics(self):
         #########
@@ -42,34 +43,81 @@ class BoatModel:
         self.yaw_rate = 0  # Angular velocity in radians
         self.steering_input = 0.0  # Amount of steering input (-1.0 .. 1.0)
         self.steering_angle = 0.0  # Actual rudder angle (-maxSteer..maxSteer)
+        self.gravity = 9.81  # m/s^2
 
         ########################
         #  VEHICLE PROPERTIES  #
         ########################
 
-        self.gravity = 9.81  # m/s^2
-        self.mass = 1200  # kg
-        self.inertiaScale = 1.0  # Multiply by mass for inertia
-        self.halfWidth = 0.8  # Centre to side of chassis (metres)
-        self.cgToFront = 2.0  # Centre of gravity to front of chassis (metres)
-        self.cgToRear = 2.0  # Centre of gravity to rear of chassis
-        self.cgToFrontAxle = 1.25  # Centre gravity to front axle
-        self.cgToRearAxle = 1.25  # Centre gravity to rear axle
-        self.cgHeight = 0.55  # Centre gravity height
-        self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
-        self.wheelWidth = 0.2  # Used for render only
-        self.tireGrip = 100.0  # How much grip tires have
-        self.lockGrip = 1  # % of grip available when wheel is locked
-        self.engineForce = -2000.0
-        self.brakeForce = 1000.0
-        self.eBrakeForce = self.brakeForce / 2.5
-        self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
-        self.maxSteer = math.pi/2  # Maximum steering angle in radians
-        self.cornerStiffnessFront = 5.0
-        self.cornerStiffnessRear = 5.2
-        self.airResist = 2.5  # air resistance (* vel)
-        self.rollResist = 8.0  # rolling resistance force (* vel)
-        self.max_speed = 20.0
+        if self.boat_type == "small":
+            self.mass = 300  # kg
+            self.inertiaScale = 1.0  # Multiply by mass for inertia
+            self.halfWidth = 0.8  # Centre to side of chassis (metres)
+            self.cgToFront = 2.0  # Centre of gravity to front of chassis (metres)
+            self.cgToRear = 2.0  # Centre of gravity to rear of chassis
+            self.cgToFrontAxle = 1.25  # Centre gravity to front axle
+            self.cgToRearAxle = 1.25  # Centre gravity to rear axle
+            self.cgHeight = 0.55  # Centre gravity height
+            self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
+            self.wheelWidth = 0.2  # Used for render only
+            self.tireGrip = 10000.0  # How much grip tires have
+            self.lockGrip = 1  # % of grip available when wheel is locked
+            self.engineForce = -1000.0
+            self.brakeForce = 1000.0
+            self.eBrakeForce = self.brakeForce / 2.5
+            self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
+            self.maxSteer = math.pi / 3  # Maximum steering angle in radians
+            self.cornerStiffnessFront = 5.0
+            self.cornerStiffnessRear = 5.2
+            self.airResist = 1  # air resistance (* vel)
+            self.rollResist = 4.0  # rolling resistance force (* vel)
+            self.max_speed = 40.0
+        elif self.boat_type == "medium":
+            self.mass = 1200  # kg
+            self.inertiaScale = 1.0  # Multiply by mass for inertia
+            self.halfWidth = 0.8  # Centre to side of chassis (metres)
+            self.cgToFront = 2.0  # Centre of gravity to front of chassis (metres)
+            self.cgToRear = 2.0  # Centre of gravity to rear of chassis
+            self.cgToFrontAxle = 1.25  # Centre gravity to front axle
+            self.cgToRearAxle = 1.25  # Centre gravity to rear axle
+            self.cgHeight = 0.55  # Centre gravity height
+            self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
+            self.wheelWidth = 0.2  # Used for render only
+            self.tireGrip = 1000.0  # How much grip tires have
+            self.lockGrip = 1  # % of grip available when wheel is locked
+            self.engineForce = -2000.0
+            self.brakeForce = 1000.0
+            self.eBrakeForce = self.brakeForce / 2.5
+            self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
+            self.maxSteer = math.pi / 4  # Maximum steering angle in radians
+            self.cornerStiffnessFront = 5.0
+            self.cornerStiffnessRear = 5.2
+            self.airResist = 2.5  # air resistance (* vel)
+            self.rollResist = 8.0  # rolling resistance force (* vel)
+            self.max_speed = 20.0
+        elif self.boat_type == "large":
+            self.mass = 12000  # kg
+            self.inertiaScale = 1.0  # Multiply by mass for inertia
+            self.halfWidth = 0.8  # Centre to side of chassis (metres)
+            self.cgToFront = 2.0  # Centre of gravity to front of chassis (metres)
+            self.cgToRear = 2.0  # Centre of gravity to rear of chassis
+            self.cgToFrontAxle = 1.25  # Centre gravity to front axle
+            self.cgToRearAxle = 1.25  # Centre gravity to rear axle
+            self.cgHeight = 0.55  # Centre gravity height
+            self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
+            self.wheelWidth = 0.2  # Used for render only
+            self.tireGrip = 100.0  # How much grip tires have
+            self.lockGrip = 1  # % of grip available when wheel is locked
+            self.engineForce = -6000.0
+            self.brakeForce = 1000.0
+            self.eBrakeForce = self.brakeForce / 2.5
+            self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
+            self.maxSteer = math.pi / 10  # Maximum steering angle in radians
+            self.cornerStiffnessFront = 5.0
+            self.cornerStiffnessRear = 5.2
+            self.airResist = 5  # air resistance (* vel)
+            self.rollResist = 1.0  # rolling resistance force (* vel)
+            self.max_speed = 10.0
 
         self.inertia = self.mass * self.inertiaScale  # equals mass
         self.length = 2.5 #length
@@ -84,10 +132,21 @@ class BoatModel:
             return
 
         vx, vy = self.sim.get_velocity(self.position, self.boat_id)
-        heading = math.atan2(vy, vx)
-        self.auto_steer(heading)
+        desired_heading = math.atan2(vy, vx)
+        self.auto_steer(desired_heading)
         norm = math.sqrt(vx**2 + vy**2)
         k_p = 2
+        current_heading = (self.heading + (4*math.pi))
+        relative_heading = (current_heading - desired_heading) % (2*math.pi)
+        # Brake if potential vector is opposite direction to you.
+        rs = self.relative_speed()
+        # if (math.pi/2 + math.pi/4) > relative_heading > (math.pi/2 - math.pi/4) and rs > self.max_speed / 5.0:
+        #     self.brake = bound(k_p * norm, 0.0, 1.0)
+        #     self.throttle = 0.0
+        # else:
+        #     self.throttle = bound(k_p * norm, 0.0, 1.0)
+        #     self.brake = 0.0
+
 
     def auto_steer(self, desired_heading):
         if self.goal is None:

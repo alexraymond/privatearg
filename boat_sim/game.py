@@ -20,38 +20,41 @@ from sim import Sim
 
 SPRITE_SCALING = 0.25
 
-SCREEN_WIDTH = 1000
-SCREEN_HEIGHT = 1000
+SCREEN_WIDTH = 1920
+SCREEN_HEIGHT = 1080
 SCREEN_TITLE = "Boat Sim"
-
-MOVEMENT_SPEED = 5
-ANGLE_SPEED = 5
 
 
 class BoatSprite(arcade.Sprite):
     """ Player class """
-    SIZES = {"small": 105, "medium": 179, "large": 368}
+    SPRITE_LENGTHS = {"small": 105, "medium": 179, "large": 368}
+    IMAGES =  {"small" : "images/ship_small_b_body.png",
+               "medium": "images/ship_medium_body_b2.png",
+               "large" : "images/ship_large_body.png"}
+    RIPPLES = {"small" : "images/water_ripple_small_000.png",
+               "medium": "images/water_ripple_medium_000.png",
+               "large" : "images/water_ripple_big_000.png"}
     OFFSET = 15
 
-    def __init__(self, image, scale, center_x, center_y, sim, size_label="medium"):
+    def __init__(self, scale, center_x, center_y, sim, boat_type="medium"):
         """ Create vehicle model and setup sprites """
 
         # Call the parent init
-        super().__init__(image, scale)
+        super().__init__(self.IMAGES[boat_type], scale)
 
         self.sim = sim
 
-        self.length = self.SIZES[size_label]
-        self.vehicle_model = self.sim.add_boat(self.sim, center_x, center_y, length=self.length)
+        self.length = self.SPRITE_LENGTHS[boat_type]
+        self.vehicle_model = self.sim.add_boat(self.sim, center_x, center_y, boat_type=boat_type)
 
         self.center_x = center_x
         self.center_y = center_y
 
         # Adding sprite for ripple effects.
         self.ripple_sprite = arcade.Sprite(
-            filename="images/water_ripple_{}_00{}.png".format(size_label, random.randint(0, 0),
-                                                              center_x=center_x,
-                                                              center_y=center_y, hit_box_algorithm="None"))
+            filename=self.RIPPLES[boat_type].format(boat_type, random.randint(0, 0),
+                                              center_x=center_x,
+                                              center_y=center_y, hit_box_algorithm="None"))
         self.ripple_sprite.scale = SPRITE_SCALING + 0.1  # FIXME: Workaround to avoid overlap
 
 
@@ -115,9 +118,9 @@ class MyGame(arcade.Window):
         arcade.set_background_color(arcade.color.BLACK)
 
         # Config
-        self.draw_potential_field = True
+        self.draw_potential_field = False
         self.draw_goals = True
-        self.draw_avoidance_boundaries = True
+        self.draw_avoidance_boundaries = False
 
         # Human control
         self.left_pressed = False
@@ -125,7 +128,19 @@ class MyGame(arcade.Window):
         self.up_pressed = False
         self.down_pressed = False
 
+        self.background_textures = []
+
         self.timestamp = time.time()
+        self.frame_counter = 0
+
+    def load_background_textures(self):
+        background_path = "images/background_frames2/"
+        frames = 30
+        for i in range(1, frames):
+            if i % 100 == 0:
+                print("{}%".format(100*i/frames))
+            texture = arcade.load_texture(background_path+"scene{:05d}.png".format(i))
+            self.background_textures.append(texture)
 
     def setup_borders(self, num_boats):
         """
@@ -146,6 +161,7 @@ class MyGame(arcade.Window):
         colour = 0
         side = 0
         angle = 0
+
 
         def too_close(position, container, threshold):
             for p in container:
@@ -197,7 +213,12 @@ class MyGame(arcade.Window):
                 if not too_close((start_x, start_y), starting_positions, min_distance_between_starting_positions):
                     break
 
-            boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, start_x, start_y, self.sim)
+            # Choose a boat size given the probability distribution below.
+            size_probabilities = {"small": 0.6,
+                                  "medium": 0.35,
+                                  "large": 0.05}
+            size = random.choices(list(size_probabilities.keys()), list(size_probabilities.values()), k=1)[0]
+            boat_sprite = BoatSprite(SPRITE_SCALING, start_x, start_y, self.sim, boat_type=size)
             boat_sprite.vehicle_model.set_goal(goal_x, goal_y)
             boat_sprite.vehicle_model.heading = angle
             goals.append((goal_x, goal_y))
@@ -210,7 +231,7 @@ class MyGame(arcade.Window):
         for i in range(num_boats):
             cx = random.randint(0, SCREEN_WIDTH)
             cy = random.randint(0, SCREEN_HEIGHT)
-            boat_sprite = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, cx, cy, self.sim)
+            boat_sprite = BoatSprite(SPRITE_SCALING, cx, cy, self.sim)
             goal_x = random.randint(0, SCREEN_WIDTH)
             goal_y = random.randint(0, SCREEN_HEIGHT)
             boat_sprite.vehicle_model.set_goal(goal_x, goal_y)
@@ -221,7 +242,7 @@ class MyGame(arcade.Window):
         # Set up boat A
         center_x = 300
         center_y = 300
-        boat_sprite_a = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        boat_sprite_a = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
         goal_x = random.randint(500, SCREEN_WIDTH)
         goal_y = random.randint(600, SCREEN_HEIGHT)
         boat_sprite_a.vehicle_model.set_goal(goal_x, goal_y)
@@ -229,7 +250,7 @@ class MyGame(arcade.Window):
         # Set up boat B
         center_x = 750
         center_y = 750
-        boat_sprite_b = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        boat_sprite_b = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
         goal_x = random.randint(0, 400)
         goal_y = random.randint(0, 400)
         boat_sprite_b.vehicle_model.set_goal(goal_x, goal_y)
@@ -244,7 +265,7 @@ class MyGame(arcade.Window):
         # Set up boat A
         center_x = 300
         center_y = 300
-        boat_sprite_a = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        boat_sprite_a = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
         goal_x = random.randint(500, SCREEN_WIDTH)
         goal_y = random.randint(600, SCREEN_HEIGHT)
         boat_sprite_a.vehicle_model.set_goal(goal_x, goal_y)
@@ -252,7 +273,7 @@ class MyGame(arcade.Window):
         # Set up boat B
         center_x = 400
         center_y = 400
-        boat_sprite_b = BoatSprite("images/ship_medium_body_b2.png", SPRITE_SCALING, center_x, center_y, self.sim)
+        boat_sprite_b = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
         goal_x = random.randint(500, SCREEN_WIDTH)
         goal_y = random.randint(600, SCREEN_HEIGHT)
         boat_sprite_b.vehicle_model.set_goal(goal_x, goal_y)
@@ -267,9 +288,11 @@ class MyGame(arcade.Window):
         """ Set up the game and initialize the variables. """
 
         # Sprite lists
-        self.background = arcade.load_texture("images/water_background.png")
-        self.setup_borders(20)
-        # self.setup_manual2()
+        # self.background = arcade.load_texture("images/water_background.png")
+        # self.background = arcade.load_texture("images/animated.gif")
+        self.load_background_textures()
+        self.setup_borders(40)
+        # self.setup_manual()
 
     def on_draw(self):
         """
@@ -280,12 +303,18 @@ class MyGame(arcade.Window):
         fps = 1.0 / (timestamp - self.timestamp)
         self.timestamp = timestamp
         # print("FPS: ", fps)
+        self.frame_counter += 1
+        slow_factor = 3
+        frame = self.frame_counter % (slow_factor * len(self.background_textures))
+        self.frame_counter = frame
+        frame = int(frame/slow_factor)
 
         # This command has to happen before we start drawing
         arcade.start_render()
 
         # Draw the background texture
-        arcade.draw_lrwh_rectangle_textured(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, self.background)
+        # arcade.draw_lrwh_rectangle_textured(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, self.background)
+        arcade.draw_lrwh_rectangle_textured(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, self.background_textures[frame])
 
         # Draw all the sprites.
         self.all_sprite_list.draw()
@@ -342,12 +371,12 @@ class MyGame(arcade.Window):
 
         if self.draw_avoidance_boundaries:
             for boat in self.boat_sprites:
-                cx, cy = boat.position
+                cx, cy = boat.vehicle_model.position
                 min_distance = self.sim.avoidance_min_distance
                 max_distance = self.sim.avoidance_max_distance
                 arcade.draw_circle_outline(cx, cy, min_distance, arcade.color.WHITE, 1)
                 arc_angle = math.degrees(boat.vehicle_model.heading) + 90
-                arcade.draw_arc_outline(cx, cy, max_distance, max_distance, arcade.color.WHITE, 0, 180, 1.5, arc_angle, 30)
+                arcade.draw_arc_outline(cx, cy, 2*max_distance, 2*max_distance, arcade.color.WHITE, 0, 180, 1.5, arc_angle, 30)
 
     def on_update(self, delta_time):
         """ Movement and game logic """
