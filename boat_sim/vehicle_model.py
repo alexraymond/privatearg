@@ -86,7 +86,7 @@ class BoatModel:
             self.tireGrip = 1000.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
             self.engineForce = -2000.0
-            self.brakeForce = 3000.0
+            self.brakeForce = 1000.0
             self.eBrakeForce = self.brakeForce / 2.5
             self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
             self.maxSteer = math.pi / 4  # Maximum steering angle in radians
@@ -131,33 +131,29 @@ class BoatModel:
         self.DEBUG_desired_heading = 0
         self.DEBUG_relative_heading = 0
         self.DEBUG_message = ""
+        self.DEBUG_distance = 0
 
     def set_goal(self, x, y):
         self.goal = (x, y)
 
-    def auto_steer_potential_field(self):
+    def auto_drive_potential_field(self):
         if self.goal is None:
             return
 
         vx, vy = self.sim.get_velocity(self.position, self.boat_id)
         desired_heading = math.atan2(vy, vx)
-        self.DEBUG_desired_heading = desired_heading
         self.auto_steer(desired_heading)
         norm = math.sqrt(vx**2 + vy**2)
+        self.auto_accelerate(norm)
         k_p = 1.0
         current_heading = (self.heading + (4*math.pi))
         relative_heading = (math.pi + current_heading - desired_heading) % (2*math.pi)
-        self.DEBUG_relative_heading = relative_heading
-        # Brake if potential vector is opposite direction to you.
-        rs = self.relative_speed()
-        self.DEBUG_message = "{}>{}>{}|rs:{:.2f}".format(int(math.degrees(math.pi + math.pi/2)), int(math.degrees(relative_heading)),
-                                                         int(math.degrees(math.pi - math.pi/2)), rs)
 
-        # If your desired heading is pointing behind you, engage reverse thrust. (Requires 30% max speed).
-        if (math.pi + math.pi/2) > relative_heading > (math.pi - math.pi/2) and rs > 0.3:
-            self.throttle = -bound(k_p * norm, 0.0, 1.0)
-        else:
-            self.throttle = bound(k_p * norm, 0.0, 1.0)
+
+        self.DEBUG_message = "{}>{}>{}|norm:{:.2f}".format(int(math.degrees(math.pi + math.pi/2)), int(math.degrees(relative_heading)),
+                                                         int(math.degrees(math.pi - math.pi/2)), norm)
+        self.DEBUG_relative_heading = relative_heading
+        self.DEBUG_desired_heading = desired_heading
 
 
     def auto_steer(self, desired_heading):
@@ -193,7 +189,7 @@ class BoatModel:
             self.right = 0.0
             self.left = bound(k_p * normalise(math.fabs(error), 0, 2*math.pi), 0, 1)
 
-    def auto_accelerate(self):
+    def auto_accelerate(self, norm):
         if self.goal is None:
             return
 
@@ -203,14 +199,22 @@ class BoatModel:
         # Distance is the error
         distance = math.dist((gx, gy), (cx, cy))
 
-        k_p = 5  # Proportional gain constant.
-        if distance < 100:
-            distance = 0.001 if distance == 0.0 else distance  # Avoid dividing by zero.
-            self.brake = bound(k_p * (1.0/distance), 0, 1)
-            self.throttle = 0
-        else:
-            self.throttle = bound(k_p * distance, 0, 1)
+        # Norm 1 = max speed. Decreases linearly.
+        desired_speed = norm * self.max_speed
+        # Positive: too slow. Negative: too fast.
+        error = desired_speed - self.abs_velocity
+
+        k_p = 1  # Proportional gain constant.
+        if error > 0:
+            self.throttle = bound(k_p * error, 0.0, 1.0)
             self.brake = 0
+        else:
+            self.throttle = 0
+            self.brake = bound(k_p * -error, 0.0, 1.0)
+
+        # DEBUG
+
+        self.DEBUG_distance = distance
 
         # print("Distance: {} | Throttle: {} | Brake: {}".format(distance, self.throttle, self.brake))
 
@@ -244,10 +248,8 @@ class BoatModel:
         fps = 1.0 / dt
         self.last_update = timestamp
 
-        # Calculate steering input autonomously.
-        self.auto_steer_potential_field()
-        # Calculate throttle/brake input autonomously.
-        # self.auto_accelerate()
+        # Calculate steering and throttle input autonomously based on a potential field method.
+        self.auto_drive_potential_field()
 
         # Process steering
         steer_input = self.right - self.left
@@ -325,7 +327,7 @@ class BoatModel:
         angularTorque = (frictionForceFront_cy + tractionForce_cy) * self.cgToFrontAxle - frictionForceRear_cy * self.cgToRearAxle
 
         #  Sim gets unstable at very slow speeds, so just stop the boat
-        if math.fabs(self.abs_velocity) < 0.5 and throttle == 0:
+        if math.fabs(self.abs_velocity) < 2.5 and throttle == 0:
             self.vx = self.vy = self.abs_velocity = 0
             angularTorque = self.yaw_rate = 0
 

@@ -11,7 +11,7 @@ class Sim:
         # List of all BoatModels present.
         self.vehicles = []
         self.avoidance_min_distance = 80
-        self.avoidance_max_distance = 100
+        self.avoidance_max_distance = 200
         self.only_frontal_avoidance = True
 
     def concedes(self, id_a, id_b):
@@ -29,13 +29,16 @@ class Sim:
             gx, gy = goal
             cx, cy = position
             # If distance is greater than that, vehicle should proceed at full speed.
-            max_speed_distance = 100
+            max_speed_distance = 200
 
             desired_heading = math.atan2(gy - cy, gx - cx)
             distance = math.dist((gx, gy), (cx, cy))
 
             # Distance factor: 1 if distance > max, decreases linearly.
-            df = bound(distance/max_speed_distance, 0.0, 1.0)
+            if distance > max_speed_distance:
+                df = 1
+            else:
+                df = bound(distance/max_speed_distance, 0.0, 1.0)
             v = np.array([df * np.cos(desired_heading), df * np.sin(desired_heading)])
             return v
 
@@ -51,6 +54,8 @@ class Sim:
             their_heading = other_vehicle.heading
             relative_heading = (heading_to_obstacle - their_heading) % (2*math.pi)
             distance = math.dist((tx, ty), (mx, my))
+            asymmetry = -math.pi/3
+            min_df, max_df = (1.5, 2.0)
 
             # Avoid division by zero.
             if distance == 0:
@@ -58,11 +63,14 @@ class Sim:
 
             # Special case: if behind, only consider min distance.
             if self.only_frontal_avoidance and math.pi / 2 < relative_heading < 3 * math.pi / 2:
-                df = 0 if distance > min_distance else bound(min_distance / distance, 0.5, 1.5)
+                df = 0 if distance > min_distance else bound(max_df * (min_distance / distance), min_df, max_df)
+            else:  # Distance factor: 0 if distance > max, increases to 1 (where distance == min)
+                df = 0 if distance > max_distance else bound(max_df * (min_distance / distance), min_df, max_df)
 
-            else: # Distance factor: 0 if distance > max, increases to 1 (where distance == min)
-                # print("other case")
-                df = 0 if distance > max_distance else bound(min_distance / distance, 0.5, 1.5)
+            # Additional angle to force boats to choose starboard avoidance when head-on.
+            if math.pi + math.pi/6 > (relative_heading + math.pi) % (2*math.pi) > math.pi - math.pi/8:
+                heading_from_obstacle = ((heading_from_obstacle + 2*math.pi) - asymmetry) % (2*math.pi)
+
             v = np.array([df * np.cos(heading_from_obstacle), df * np.sin(heading_from_obstacle)])
             return v
 

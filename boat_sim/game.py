@@ -164,7 +164,6 @@ class MyGame(arcade.Window):
         side = 0
         angle = 0
 
-
         def too_close(position, container, threshold):
             for p in container:
                 if math.dist(position, p) < threshold:
@@ -305,7 +304,7 @@ class MyGame(arcade.Window):
         # self.background = arcade.load_texture("images/animated.gif")
         self.load_background_textures()
         # self.setup_borders(40)
-        self.setup_manual2()
+        self.setup_manual()
 
     def on_draw(self):
         """
@@ -404,8 +403,9 @@ class MyGame(arcade.Window):
                 brake = boat.vehicle_model.brake
                 speed = boat.vehicle_model.abs_velocity
                 rel_hdg = boat.vehicle_model.DEBUG_relative_heading
-                debug = "{}\nTHR:{:.2f}\nBRK:{:.2f}\nSPD:{:.2f}\nRHDG:{}".format(boat.vehicle_model.DEBUG_message,
-                                                                                 throttle, brake, speed, int(math.degrees(rel_hdg)))
+                dist = boat.vehicle_model.DEBUG_distance
+                debug = "{}\nTHR:{:.2f}\nBRK:{:.2f}\nSPD:{:.2f}\nDIST:{}".format(boat.vehicle_model.DEBUG_message,
+                                                                                 throttle, brake, speed, int(dist))
                 arcade.draw_text(debug, cx, cy + 40, arcade.color.RED, 15)
 
                 desired_hdg = boat.vehicle_model.DEBUG_desired_heading
