@@ -20,7 +20,7 @@ from sim import Sim
 
 SPRITE_SCALING = 0.25
 
-SCREEN_WIDTH = 1000
+SCREEN_WIDTH = 2000
 SCREEN_HEIGHT = 1000
 SCREEN_TITLE = "Boat Sim"
 
@@ -118,11 +118,12 @@ class MyGame(arcade.Window):
         arcade.set_background_color(arcade.color.BLACK)
 
         # Config
-        self.draw_potential_field = True
+        self.draw_potential_field = False
+        self.potential_field_resolution = 100
         self.draw_goals = True
-        self.draw_avoidance_boundaries = True
+        self.draw_avoidance_boundaries = False
         self.draw_desired_heading = True
-        self.debug = True
+        self.debug = False
 
         # Human control
         self.left_pressed = False
@@ -243,7 +244,7 @@ class MyGame(arcade.Window):
         # Set up boat A
         center_x = 300
         center_y = 300
-        boat_sprite_a = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
+        boat_sprite_a = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim, boat_type="medium")
         goal_x = random.randint(500, SCREEN_WIDTH)
         goal_y = random.randint(600, SCREEN_HEIGHT)
         boat_sprite_a.vehicle_model.set_goal(goal_x, goal_y)
@@ -251,7 +252,7 @@ class MyGame(arcade.Window):
         # Set up boat B
         center_x = 750
         center_y = 750
-        boat_sprite_b = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
+        boat_sprite_b = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim, boat_type="medium")
         goal_x = random.randint(0, 400)
         goal_y = random.randint(0, 400)
         boat_sprite_b.vehicle_model.set_goal(goal_x, goal_y)
@@ -260,7 +261,7 @@ class MyGame(arcade.Window):
         # Set up boat C
         center_x = 800
         center_y = 500
-        boat_sprite_c = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
+        boat_sprite_c = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim, boat_type="medium")
         goal_x = random.randint(000, 100)
         goal_y = random.randint(400, 600)
         boat_sprite_c.vehicle_model.set_goal(goal_x, goal_y)
@@ -295,16 +296,6 @@ class MyGame(arcade.Window):
         self.boat_sprites.extend([boat_sprite_a, boat_sprite_b])
 
         self.all_sprite_list.extend([boat_sprite_a, boat_sprite_b, boat_sprite_a.ripple(), boat_sprite_b.ripple()])
-
-    def setup(self):
-        """ Set up the game and initialize the variables. """
-
-        # Sprite lists
-        # self.background = arcade.load_texture("images/water_background.png")
-        # self.background = arcade.load_texture("images/animated.gif")
-        self.load_background_textures()
-        # self.setup_borders(40)
-        self.setup_manual()
 
     def on_draw(self):
         """
@@ -366,6 +357,9 @@ class MyGame(arcade.Window):
                     colour = arcade.color.YELLOW
                 else:
                     colour = arcade.color.BLACK
+
+                if boat.vehicle_model.at_destination:
+                    colour = arcade.color.GRAY
                 boat_x, boat_y = boat.vehicle_model.position
                 goal_x, goal_y = boat.vehicle_model.goal
                 arcade.draw_circle_filled(goal_x, goal_y, 10, colour)
@@ -376,7 +370,7 @@ class MyGame(arcade.Window):
 
         # Draw potential field.
         if self.draw_potential_field:
-            resolution = 30
+            resolution = self.potential_field_resolution
             for x1 in range(0, SCREEN_WIDTH, resolution):
                 for y1 in range(0, SCREEN_HEIGHT, resolution):
                     v = self.sim.get_velocity((x1, y1), 0)
@@ -387,8 +381,12 @@ class MyGame(arcade.Window):
                     y2 = y1 + (v[1] * length)
                     draw_arrow(x1, y1, angle, length, arcade.color.BLACK, thickness)
 
+
+
         if self.draw_avoidance_boundaries:
             for boat in self.boat_sprites:
+                if boat.vehicle_model.at_destination:
+                    break
                 cx, cy = boat.vehicle_model.position
                 min_distance = self.sim.avoidance_min_distance
                 max_distance = self.sim.avoidance_max_distance
@@ -398,22 +396,28 @@ class MyGame(arcade.Window):
 
         if self.debug:
             for boat in self.boat_sprites:
+                if boat.vehicle_model.at_destination:
+                    break
                 cx, cy = boat.vehicle_model.position
                 throttle = boat.vehicle_model.throttle
                 brake = boat.vehicle_model.brake
                 speed = boat.vehicle_model.abs_velocity
                 rel_hdg = boat.vehicle_model.DEBUG_relative_heading
                 dist = boat.vehicle_model.DEBUG_distance
-                debug = "{}\nTHR:{:.2f}\nBRK:{:.2f}\nSPD:{:.2f}\nDIST:{}".format(boat.vehicle_model.DEBUG_message,
-                                                                                 throttle, brake, speed, int(dist))
+                l = boat.vehicle_model.left
+                r = boat.vehicle_model.right
+                debug = "{}\nTHR:{:.2f}\nBRK:{:.2f}\nSPD:{:.2f}\nDIST:{}\nL:{:.2f}|R:{:.2f}".format(boat.vehicle_model.DEBUG_message,
+                                                                                 throttle, brake, speed, int(dist), l, r)
                 arcade.draw_text(debug, cx, cy + 40, arcade.color.RED, 15)
 
+        if self.draw_desired_heading:
+            for boat in self.boat_sprites:
+                if boat.vehicle_model.at_destination:
+                    break
+                cx, cy = boat.vehicle_model.position
                 desired_hdg = boat.vehicle_model.DEBUG_desired_heading
                 length = 40
                 draw_arrow(cx, cy, desired_hdg, length, arcade.color.RED, thickness=2.0)
-
-
-
 
     def on_update(self, delta_time):
         """ Movement and game logic """
@@ -459,6 +463,16 @@ class MyGame(arcade.Window):
             self.left_pressed = False
         elif key == arcade.key.RIGHT:
             self.right_pressed = False
+
+    def setup(self):
+        """ Set up the game and initialize the variables. """
+
+        # Sprite lists
+        # self.background = arcade.load_texture("images/water_background.png")
+        # self.background = arcade.load_texture("images/animated.gif")
+        self.load_background_textures()
+        self.setup_borders(55)
+        # self.setup_manual2()
 
 def main():
     """ Main method """

@@ -8,6 +8,7 @@ Made changes to make it more "boaty" are in order.
 
 
 class BoatModel:
+    destination_threshold = 50
     def __init__(self, sim, boat_id, position = (0,0), boat_type="medium"):
         self.sim = sim
         self.boat_id = boat_id
@@ -17,6 +18,8 @@ class BoatModel:
         self.goal_colour = 0
         self.boat_type = boat_type
         self.init_kinematics()
+        self.at_destination = False
+
 
     def init_kinematics(self):
         #########
@@ -66,7 +69,7 @@ class BoatModel:
             self.brakeForce = 3000.0
             self.eBrakeForce = self.brakeForce / 2.5
             self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
-            self.maxSteer = math.pi / 3  # Maximum steering angle in radians
+            self.maxSteer = math.pi / 2  # Maximum steering angle in radians
             self.cornerStiffnessFront = 5.0
             self.cornerStiffnessRear = 5.2
             self.water_resistance = 1  # air resistance (* vel)
@@ -108,11 +111,11 @@ class BoatModel:
             self.wheelWidth = 0.2  # Used for render only
             self.tireGrip = 100.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
-            self.engineForce = -6000.0
+            self.engineForce = -8000.0
             self.brakeForce = 3000.0
             self.eBrakeForce = self.brakeForce / 2.5
             self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
-            self.maxSteer = math.pi / 10  # Maximum steering angle in radians
+            self.maxSteer = math.pi / 6  # Maximum steering angle in radians
             self.cornerStiffnessFront = 5.0
             self.cornerStiffnessRear = 5.2
             self.water_resistance = 5  # air resistance (* vel)
@@ -137,7 +140,8 @@ class BoatModel:
         self.goal = (x, y)
 
     def auto_drive_potential_field(self):
-        if self.goal is None:
+        if self.goal is None or self.at_destination:
+            self.throttle = self.brake = self.left = self.right = 0.0
             return
 
         vx, vy = self.sim.get_velocity(self.position, self.boat_id)
@@ -246,6 +250,9 @@ class BoatModel:
         if dt == 0.0:
             return
         fps = 1.0 / dt
+        print(fps)
+        if fps < 20:
+            dt = 1.0 / 20.0
         self.last_update = timestamp
 
         # Calculate steering and throttle input autonomously based on a potential field method.
@@ -327,9 +334,12 @@ class BoatModel:
         angularTorque = (frictionForceFront_cy + tractionForce_cy) * self.cgToFrontAxle - frictionForceRear_cy * self.cgToRearAxle
 
         #  Sim gets unstable at very slow speeds, so just stop the boat
-        if math.fabs(self.abs_velocity) < 2.5 and throttle == 0:
-            self.vx = self.vy = self.abs_velocity = 0
+        distance_to_goal = math.dist((self.position[0], self.position[1]), (self.goal[0], self.goal[1]))
+        if math.fabs(self.abs_velocity) < 5 and throttle == 0.0:
             angularTorque = self.yaw_rate = 0
+            self.vx = self.vy = self.abs_velocity = 0
+            if distance_to_goal < self.destination_threshold:
+                self.at_destination = True
 
         angularAccel = angularTorque / self.inertia
         # Workaround to avoid jittery movement in beginning of simulation

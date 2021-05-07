@@ -10,8 +10,8 @@ class Sim:
     def __init__(self):
         # List of all BoatModels present.
         self.vehicles = []
-        self.avoidance_min_distance = 80
-        self.avoidance_max_distance = 200
+        self.avoidance_min_distance = 100
+        self.avoidance_max_distance = 300
         self.only_frontal_avoidance = True
 
     def concedes(self, id_a, id_b):
@@ -46,6 +46,8 @@ class Sim:
             tx, ty = other_vehicle.position
             mx, my = my_position
 
+            if other_vehicle.at_destination:
+                return np.zeros(2, dtype=np.float32)
             self.only_frontal_avoidance = True
 
             heading_from_obstacle = math.atan2(my - ty, mx - tx)
@@ -55,17 +57,19 @@ class Sim:
             relative_heading = (heading_to_obstacle - their_heading) % (2*math.pi)
             distance = math.dist((tx, ty), (mx, my))
             asymmetry = -math.pi/3
-            min_df, max_df = (1.5, 2.0)
-
-            # Avoid division by zero.
-            if distance == 0:
-                distance = 0.01
+            k_d = 2.0
+            # Avoid dividing by zero.
+            if (max_distance == min_distance):
+                df = 1
+            else:
+                df = (max_distance - distance) / (max_distance - min_distance)
+            df = bound(k_d * df, 0.0, 2.0)
 
             # Special case: if behind, only consider min distance.
             if self.only_frontal_avoidance and math.pi / 2 < relative_heading < 3 * math.pi / 2:
-                df = 0 if distance > min_distance else bound(max_df * (min_distance / distance), min_df, max_df)
+                df = 0 if distance > min_distance else df
             else:  # Distance factor: 0 if distance > max, increases to 1 (where distance == min)
-                df = 0 if distance > max_distance else bound(max_df * (min_distance / distance), min_df, max_df)
+                df = 0 if distance > max_distance else df
 
             # Additional angle to force boats to choose starboard avoidance when head-on.
             if math.pi + math.pi/6 > (relative_heading + math.pi) % (2*math.pi) > math.pi - math.pi/8:
