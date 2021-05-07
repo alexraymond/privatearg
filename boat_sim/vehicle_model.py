@@ -63,13 +63,13 @@ class BoatModel:
             self.tireGrip = 10000.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
             self.engineForce = -1000.0
-            self.brakeForce = 1000.0
+            self.brakeForce = 3000.0
             self.eBrakeForce = self.brakeForce / 2.5
             self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
             self.maxSteer = math.pi / 3  # Maximum steering angle in radians
             self.cornerStiffnessFront = 5.0
             self.cornerStiffnessRear = 5.2
-            self.airResist = 1  # air resistance (* vel)
+            self.water_resistance = 1  # air resistance (* vel)
             self.rollResist = 4.0  # rolling resistance force (* vel)
             self.max_speed = 40.0
         elif self.boat_type == "medium":
@@ -86,13 +86,13 @@ class BoatModel:
             self.tireGrip = 1000.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
             self.engineForce = -2000.0
-            self.brakeForce = 1000.0
+            self.brakeForce = 3000.0
             self.eBrakeForce = self.brakeForce / 2.5
             self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
             self.maxSteer = math.pi / 4  # Maximum steering angle in radians
             self.cornerStiffnessFront = 5.0
             self.cornerStiffnessRear = 5.2
-            self.airResist = 2.5  # air resistance (* vel)
+            self.water_resistance = 2.5  # air resistance (* vel)
             self.rollResist = 8.0  # rolling resistance force (* vel)
             self.max_speed = 20.0
         elif self.boat_type == "large":
@@ -109,13 +109,13 @@ class BoatModel:
             self.tireGrip = 100.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
             self.engineForce = -6000.0
-            self.brakeForce = 1000.0
+            self.brakeForce = 3000.0
             self.eBrakeForce = self.brakeForce / 2.5
             self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
             self.maxSteer = math.pi / 10  # Maximum steering angle in radians
             self.cornerStiffnessFront = 5.0
             self.cornerStiffnessRear = 5.2
-            self.airResist = 5  # air resistance (* vel)
+            self.water_resistance = 5  # air resistance (* vel)
             self.rollResist = 1.0  # rolling resistance force (* vel)
             self.max_speed = 10.0
 
@@ -123,6 +123,14 @@ class BoatModel:
         self.length = 2.5 #length
         self.axleWeightRatioFront = self.cgToRearAxle / self.length  # Percentage of vehicle weight on front
         self.axleWeightRatioRear = self.cgToFrontAxle / self.length  # Percentage of vehicle weight on rear
+
+        ##############
+        # DEBUG INFO #
+        ##############
+
+        self.DEBUG_desired_heading = 0
+        self.DEBUG_relative_heading = 0
+        self.DEBUG_message = ""
 
     def set_goal(self, x, y):
         self.goal = (x, y)
@@ -133,19 +141,23 @@ class BoatModel:
 
         vx, vy = self.sim.get_velocity(self.position, self.boat_id)
         desired_heading = math.atan2(vy, vx)
+        self.DEBUG_desired_heading = desired_heading
         self.auto_steer(desired_heading)
         norm = math.sqrt(vx**2 + vy**2)
-        k_p = 2
+        k_p = 1.0
         current_heading = (self.heading + (4*math.pi))
-        relative_heading = (current_heading - desired_heading) % (2*math.pi)
+        relative_heading = (math.pi + current_heading - desired_heading) % (2*math.pi)
+        self.DEBUG_relative_heading = relative_heading
         # Brake if potential vector is opposite direction to you.
         rs = self.relative_speed()
-        # if (math.pi/2 + math.pi/4) > relative_heading > (math.pi/2 - math.pi/4) and rs > self.max_speed / 5.0:
-        #     self.brake = bound(k_p * norm, 0.0, 1.0)
-        #     self.throttle = 0.0
-        # else:
-        #     self.throttle = bound(k_p * norm, 0.0, 1.0)
-        #     self.brake = 0.0
+        self.DEBUG_message = "{}>{}>{}|rs:{:.2f}".format(int(math.degrees(math.pi + math.pi/2)), int(math.degrees(relative_heading)),
+                                                         int(math.degrees(math.pi - math.pi/2)), rs)
+
+        # If your desired heading is pointing behind you, engage reverse thrust. (Requires 30% max speed).
+        if (math.pi + math.pi/2) > relative_heading > (math.pi - math.pi/2) and rs > 0.3:
+            self.throttle = -bound(k_p * norm, 0.0, 1.0)
+        else:
+            self.throttle = bound(k_p * norm, 0.0, 1.0)
 
 
     def auto_steer(self, desired_heading):
@@ -235,7 +247,7 @@ class BoatModel:
         # Calculate steering input autonomously.
         self.auto_steer_potential_field()
         # Calculate throttle/brake input autonomously.
-        self.auto_accelerate()
+        # self.auto_accelerate()
 
         # Process steering
         steer_input = self.right - self.left
@@ -285,8 +297,8 @@ class BoatModel:
         tractionForce_cx = throttle - brake * math.copysign(1, self.lvx)
         tractionForce_cy = 0
 
-        dragForce_cx = -self.rollResist * self.lvx - self.airResist * self.lvx * math.fabs(self.lvx)
-        dragForce_cy = -self.rollResist * self.lvy - self.airResist * self.lvy * math.fabs(self.lvy)
+        dragForce_cx = -self.rollResist * self.lvx - self.water_resistance * self.lvx * math.fabs(self.lvx)
+        dragForce_cy = -self.rollResist * self.lvy - self.water_resistance * self.lvy * math.fabs(self.lvy)
 
         # total force in car coordinates
         totalForce_cx = dragForce_cx + tractionForce_cx

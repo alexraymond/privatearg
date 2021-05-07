@@ -20,8 +20,8 @@ from sim import Sim
 
 SPRITE_SCALING = 0.25
 
-SCREEN_WIDTH = 1920
-SCREEN_HEIGHT = 1080
+SCREEN_WIDTH = 1000
+SCREEN_HEIGHT = 1000
 SCREEN_TITLE = "Boat Sim"
 
 
@@ -118,9 +118,11 @@ class MyGame(arcade.Window):
         arcade.set_background_color(arcade.color.BLACK)
 
         # Config
-        self.draw_potential_field = False
+        self.draw_potential_field = True
         self.draw_goals = True
-        self.draw_avoidance_boundaries = False
+        self.draw_avoidance_boundaries = True
+        self.draw_desired_heading = True
+        self.debug = True
 
         # Human control
         self.left_pressed = False
@@ -256,28 +258,39 @@ class MyGame(arcade.Window):
         boat_sprite_b.vehicle_model.set_goal(goal_x, goal_y)
         boat_sprite_b.vehicle_model.heading = -3*math.pi/4
 
-        self.boat_sprites = []
-        self.boat_sprites.extend([boat_sprite_a, boat_sprite_b])
+        # Set up boat C
+        center_x = 800
+        center_y = 500
+        boat_sprite_c = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
+        goal_x = random.randint(000, 100)
+        goal_y = random.randint(400, 600)
+        boat_sprite_c.vehicle_model.set_goal(goal_x, goal_y)
+        boat_sprite_c.vehicle_model.heading = math.pi / 2
 
-        self.all_sprite_list.extend([boat_sprite_a, boat_sprite_b, boat_sprite_a.ripple(), boat_sprite_b.ripple()])
+        self.boat_sprites = []
+        self.boat_sprites.extend([boat_sprite_a, boat_sprite_b, boat_sprite_c])
+
+        self.all_sprite_list.extend([boat_sprite_a, boat_sprite_b, boat_sprite_c,
+                                     boat_sprite_a.ripple(), boat_sprite_b.ripple(), boat_sprite_c.ripple()])
 
     def setup_manual2(self):
         # Set up boat A
         center_x = 300
         center_y = 300
         boat_sprite_a = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
-        goal_x = random.randint(500, SCREEN_WIDTH)
-        goal_y = random.randint(600, SCREEN_HEIGHT)
+        goal_x = random.randint(730, 770)
+        goal_y = random.randint(730, 770)
         boat_sprite_a.vehicle_model.set_goal(goal_x, goal_y)
+        boat_sprite_a.vehicle_model.heading = -math.pi / 2
 
         # Set up boat B
-        center_x = 400
-        center_y = 400
+        center_x = 750
+        center_y = 750
         boat_sprite_b = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim)
-        goal_x = random.randint(500, SCREEN_WIDTH)
-        goal_y = random.randint(600, SCREEN_HEIGHT)
+        goal_x = random.randint(280, 320)
+        goal_y = random.randint(280, 320)
         boat_sprite_b.vehicle_model.set_goal(goal_x, goal_y)
-        boat_sprite_b.vehicle_model.heading = math.pi/4
+        boat_sprite_b.vehicle_model.heading = -math.pi / 2
 
         self.boat_sprites = []
         self.boat_sprites.extend([boat_sprite_a, boat_sprite_b])
@@ -291,8 +304,8 @@ class MyGame(arcade.Window):
         # self.background = arcade.load_texture("images/water_background.png")
         # self.background = arcade.load_texture("images/animated.gif")
         self.load_background_textures()
-        self.setup_borders(40)
-        # self.setup_manual()
+        # self.setup_borders(40)
+        self.setup_manual2()
 
     def on_draw(self):
         """
@@ -319,6 +332,26 @@ class MyGame(arcade.Window):
         # Draw all the sprites.
         self.all_sprite_list.draw()
         i = 1
+
+        def draw_arrow(x1, y1, angle, length, colour, thickness = 1.0):
+            x2 = x1 + length * math.cos(angle)
+            y2 = y1 + length * math.sin(angle)
+            arcade.draw_line(x1, y1, x2, y2, colour, thickness)
+
+            # Draw arrowheads.
+            head_size = 5
+            dx = x1 - x2
+            dy = y1 - y2
+            norm = math.sqrt(dx * dx + dy * dy)
+            udx = dx / norm  # Normalised x.
+            udy = dy / norm
+            angle = math.pi / 6
+            ax = udx * math.cos(angle) - udy * math.sin(angle)
+            ay = udx * math.sin(angle) + udy * math.cos(angle)
+            bx = udx * math.cos(angle) + udy * math.sin(angle)
+            by = -udx * math.sin(angle) + udy * math.cos(angle)
+            arcade.draw_line(x2, y2, x2 + head_size * ax, y2 + head_size * ay, colour, thickness)
+            arcade.draw_line(x2, y2, x2 + head_size * bx, y2 + head_size * by, colour, thickness)
 
         # Draw goals and indices.
         if self.draw_goals:
@@ -348,26 +381,12 @@ class MyGame(arcade.Window):
             for x1 in range(0, SCREEN_WIDTH, resolution):
                 for y1 in range(0, SCREEN_HEIGHT, resolution):
                     v = self.sim.get_velocity((x1, y1), 0)
-                    thickness = 1.5
-                    size = 20
-                    x2 = x1 + (v[0] * size)
-                    y2 = y1 + (v[1] * size)
-                    arcade.draw_line(x1, y1, x2, y2, arcade.color.BLACK, thickness)
-
-                    # Draw arrowheads.
-                    head_size = 5
-                    dx = x1 - x2
-                    dy = y1 - y2
-                    norm = math.sqrt(dx * dx + dy * dy)
-                    udx = dx/norm  # Normalised x.
-                    udy = dy/norm
-                    angle = math.pi/6
-                    ax = udx * math.cos(angle) - udy * math.sin(angle)
-                    ay = udx * math.sin(angle) + udy * math.cos(angle)
-                    bx = udx * math.cos(angle) + udy * math.sin(angle)
-                    by = -udx * math.sin(angle) + udy * math.cos(angle)
-                    arcade.draw_line(x2, y2, x2 + head_size * ax, y2 + head_size * ay, arcade.color.BLACK, thickness)
-                    arcade.draw_line(x2, y2, x2 + head_size * bx, y2 + head_size * by, arcade.color.BLACK, thickness)
+                    thickness = 1.0
+                    length = 20
+                    angle = math.atan2(v[1], v[0])
+                    x2 = x1 + (v[0] * length)
+                    y2 = y1 + (v[1] * length)
+                    draw_arrow(x1, y1, angle, length, arcade.color.BLACK, thickness)
 
         if self.draw_avoidance_boundaries:
             for boat in self.boat_sprites:
@@ -377,6 +396,24 @@ class MyGame(arcade.Window):
                 arcade.draw_circle_outline(cx, cy, min_distance, arcade.color.WHITE, 1)
                 arc_angle = math.degrees(boat.vehicle_model.heading) + 90
                 arcade.draw_arc_outline(cx, cy, 2*max_distance, 2*max_distance, arcade.color.WHITE, 0, 180, 1.5, arc_angle, 30)
+
+        if self.debug:
+            for boat in self.boat_sprites:
+                cx, cy = boat.vehicle_model.position
+                throttle = boat.vehicle_model.throttle
+                brake = boat.vehicle_model.brake
+                speed = boat.vehicle_model.abs_velocity
+                rel_hdg = boat.vehicle_model.DEBUG_relative_heading
+                debug = "{}\nTHR:{:.2f}\nBRK:{:.2f}\nSPD:{:.2f}\nRHDG:{}".format(boat.vehicle_model.DEBUG_message,
+                                                                                 throttle, brake, speed, int(math.degrees(rel_hdg)))
+                arcade.draw_text(debug, cx, cy + 40, arcade.color.RED, 15)
+
+                desired_hdg = boat.vehicle_model.DEBUG_desired_heading
+                length = 40
+                draw_arrow(cx, cy, desired_hdg, length, arcade.color.RED, thickness=2.0)
+
+
+
 
     def on_update(self, delta_time):
         """ Movement and game logic """
