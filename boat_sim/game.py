@@ -20,8 +20,8 @@ from sim import Sim
 
 SPRITE_SCALING = 0.25
 
-SCREEN_WIDTH = 2000
-SCREEN_HEIGHT = 1000
+SCREEN_WIDTH = 1900
+SCREEN_HEIGHT = 900
 SCREEN_TITLE = "Boat Sim"
 
 
@@ -98,7 +98,7 @@ class MyGame(arcade.Window):
         """
 
         # Call the parent class initializer
-        super().__init__(width, height, title)
+        super().__init__(width, height, title, resizable=True)
 
         # Set the working directory (where we expect to find files) to the same
         # directory this .py file is in. You can leave this out of your own
@@ -123,7 +123,7 @@ class MyGame(arcade.Window):
         self.draw_goals = True
         self.draw_avoidance_boundaries = False
         self.draw_desired_heading = True
-        self.debug = False
+        self.debug = True
 
         # Human control
         self.left_pressed = False
@@ -240,6 +240,21 @@ class MyGame(arcade.Window):
             self.boat_sprites.append(boat_sprite)
             self.all_sprite_list.extend([boat_sprite, boat_sprite.ripple()])
 
+    def setup_manual3(self):
+        # Set up boat A
+        center_x = 300
+        center_y = 300
+        boat_sprite_a = BoatSprite(SPRITE_SCALING, center_x, center_y, self.sim, boat_type="large")
+        goal_x = 400
+        goal_y = 300
+        boat_sprite_a.vehicle_model.set_goal(goal_x, goal_y)
+        boat_sprite_a.vehicle_model.heading = math.pi/2
+
+        self.boat_sprites = []
+        self.boat_sprites.extend([boat_sprite_a])
+
+        self.all_sprite_list.extend([boat_sprite_a, boat_sprite_a.ripple()])
+
     def setup_manual(self):
         # Set up boat A
         center_x = 300
@@ -303,7 +318,7 @@ class MyGame(arcade.Window):
         """
 
         timestamp = time.time()
-        fps = 1.0 / (timestamp - self.timestamp)
+        # fps = 1.0 / (timestamp - self.timestamp)
         self.timestamp = timestamp
         # print("FPS: ", fps)
         self.frame_counter += 1
@@ -381,12 +396,10 @@ class MyGame(arcade.Window):
                     y2 = y1 + (v[1] * length)
                     draw_arrow(x1, y1, angle, length, arcade.color.BLACK, thickness)
 
-
-
         if self.draw_avoidance_boundaries:
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
-                    break
+                    continue
                 cx, cy = boat.vehicle_model.position
                 min_distance = self.sim.avoidance_min_distance
                 max_distance = self.sim.avoidance_max_distance
@@ -397,13 +410,13 @@ class MyGame(arcade.Window):
         if self.debug:
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
-                    break
+                    continue
                 cx, cy = boat.vehicle_model.position
                 throttle = boat.vehicle_model.throttle
                 brake = boat.vehicle_model.brake
                 speed = boat.vehicle_model.abs_velocity
                 rel_hdg = boat.vehicle_model.DEBUG_relative_heading
-                dist = boat.vehicle_model.DEBUG_distance
+                dist = boat.vehicle_model.distance_to_goal
                 l = boat.vehicle_model.left
                 r = boat.vehicle_model.right
                 debug = "{}\nTHR:{:.2f}\nBRK:{:.2f}\nSPD:{:.2f}\nDIST:{}\nL:{:.2f}|R:{:.2f}".format(boat.vehicle_model.DEBUG_message,
@@ -413,7 +426,7 @@ class MyGame(arcade.Window):
         if self.draw_desired_heading:
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
-                    break
+                    continue
                 cx, cy = boat.vehicle_model.position
                 desired_hdg = boat.vehicle_model.DEBUG_desired_heading
                 length = 40
@@ -471,8 +484,8 @@ class MyGame(arcade.Window):
         # self.background = arcade.load_texture("images/water_background.png")
         # self.background = arcade.load_texture("images/animated.gif")
         self.load_background_textures()
-        self.setup_borders(55)
-        # self.setup_manual2()
+        self.setup_borders(30)
+        # self.setup_manual()
 
 def main():
     """ Main method """

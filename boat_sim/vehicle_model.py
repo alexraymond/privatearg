@@ -16,6 +16,7 @@ class BoatModel:
         self.position = position
         self.goal = None
         self.goal_colour = 0
+        self.distance_to_goal = 0
         self.boat_type = boat_type
         self.init_kinematics()
         self.at_destination = False
@@ -86,7 +87,7 @@ class BoatModel:
             self.cgHeight = 0.55  # Centre gravity height
             self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
             self.wheelWidth = 0.2  # Used for render only
-            self.tireGrip = 1000.0  # How much grip tires have
+            self.tireGrip = 5000.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
             self.engineForce = -2000.0
             self.brakeForce = 1000.0
@@ -109,7 +110,7 @@ class BoatModel:
             self.cgHeight = 0.55  # Centre gravity height
             self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
             self.wheelWidth = 0.2  # Used for render only
-            self.tireGrip = 100.0  # How much grip tires have
+            self.tireGrip = 1000.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
             self.engineForce = -8000.0
             self.brakeForce = 3000.0
@@ -134,7 +135,6 @@ class BoatModel:
         self.DEBUG_desired_heading = 0
         self.DEBUG_relative_heading = 0
         self.DEBUG_message = ""
-        self.DEBUG_distance = 0
 
     def set_goal(self, x, y):
         self.goal = (x, y)
@@ -149,13 +149,16 @@ class BoatModel:
         self.auto_steer(desired_heading)
         norm = math.sqrt(vx**2 + vy**2)
         self.auto_accelerate(norm)
-        k_p = 1.0
+
+        # FIXME: Workaround to avoid getting trapped in tangent.
         current_heading = (self.heading + (4*math.pi))
         relative_heading = (math.pi + current_heading - desired_heading) % (2*math.pi)
+        tangent = math.tan(relative_heading)
+        # Quickly turn to the other side to break away from tangent.
+        if self.distance_to_goal < 100 and math.fabs(tangent) > 1.0:
+            self.left, self.right = 3*self.left, 3*self.right
 
-
-        self.DEBUG_message = "{}>{}>{}|norm:{:.2f}".format(int(math.degrees(math.pi + math.pi/2)), int(math.degrees(relative_heading)),
-                                                         int(math.degrees(math.pi - math.pi/2)), norm)
+        self.DEBUG_message = "tan:{:.1f}".format(tangent)
         self.DEBUG_relative_heading = relative_heading
         self.DEBUG_desired_heading = desired_heading
 
@@ -201,7 +204,7 @@ class BoatModel:
         cx, cy = self.position
 
         # Distance is the error
-        distance = math.dist((gx, gy), (cx, cy))
+        self.distance_to_goal = math.dist((gx, gy), (cx, cy))
 
         # Norm 1 = max speed. Decreases linearly.
         desired_speed = norm * self.max_speed
@@ -216,9 +219,6 @@ class BoatModel:
             self.throttle = 0
             self.brake = bound(k_p * -error, 0.0, 1.0)
 
-        # DEBUG
-
-        self.DEBUG_distance = distance
 
         # print("Distance: {} | Throttle: {} | Brake: {}".format(distance, self.throttle, self.brake))
 
@@ -250,7 +250,7 @@ class BoatModel:
         if dt == 0.0:
             return
         fps = 1.0 / dt
-        print(fps)
+        # print(fps)
         if fps < 20:
             dt = 1.0 / 20.0
         self.last_update = timestamp
@@ -333,13 +333,15 @@ class BoatModel:
         # calculate rotational forces
         angularTorque = (frictionForceFront_cy + tractionForce_cy) * self.cgToFrontAxle - frictionForceRear_cy * self.cgToRearAxle
 
-        #  Sim gets unstable at very slow speeds, so just stop the boat
+        # If boat reaches goal at slow speed, consider mission complete.
         distance_to_goal = math.dist((self.position[0], self.position[1]), (self.goal[0], self.goal[1]))
-        if math.fabs(self.abs_velocity) < 5 and throttle == 0.0:
+        if distance_to_goal < self.destination_threshold and self.abs_velocity < 3.0:
+            self.at_destination = True
+
+        #  Sim gets unstable at very slow speeds, so just stop the boat
+        if (math.fabs(self.abs_velocity) < 0.5 and throttle == 0.0) or self.at_destination:
             angularTorque = self.yaw_rate = 0
             self.vx = self.vy = self.abs_velocity = 0
-            if distance_to_goal < self.destination_threshold:
-                self.at_destination = True
 
         angularAccel = angularTorque / self.inertia
         # Workaround to avoid jittery movement in beginning of simulation
@@ -347,7 +349,7 @@ class BoatModel:
 
         self.yaw_rate += angularAccel * dt
         # Workaround to avoid powerslides at low speeds.
-        if math.fabs(self.abs_velocity < 5):
+        if math.fabs(self.abs_velocity < 1.0):
             self.yaw_rate = 0.0
         self.heading += self.yaw_rate * dt
         # self.heading %= 2*math.pi
