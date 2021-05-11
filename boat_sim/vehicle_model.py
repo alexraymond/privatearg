@@ -8,7 +8,7 @@ Made changes to make it more "boaty" are in order.
 
 
 class BoatModel:
-    destination_threshold = 50
+    acquisition_threshold = 50
     def __init__(self, sim, boat_id, position = (0,0), boat_type="medium"):
         self.sim = sim
         self.boat_id = boat_id
@@ -20,6 +20,7 @@ class BoatModel:
         self.boat_type = boat_type
         self.init_kinematics()
         self.at_destination = False
+        self.name = ""
 
 
     def init_kinematics(self):
@@ -66,16 +67,16 @@ class BoatModel:
             self.wheelWidth = 0.2  # Used for render only
             self.tireGrip = 10000.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
-            self.engineForce = -1000.0
+            self.engineForce = -1200.0
             self.brakeForce = 3000.0
             self.eBrakeForce = self.brakeForce / 2.5
             self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
-            self.maxSteer = math.pi / 2  # Maximum steering angle in radians
+            self.maxSteer = math.pi / 1.5  # Maximum steering angle in radians
             self.cornerStiffnessFront = 5.0
             self.cornerStiffnessRear = 5.2
             self.water_resistance = 1  # air resistance (* vel)
             self.rollResist = 4.0  # rolling resistance force (* vel)
-            self.max_speed = 40.0
+            self.max_speed = 30.0
         elif self.boat_type == "medium":
             self.mass = 1200  # kg
             self.inertiaScale = 1.0  # Multiply by mass for inertia
@@ -100,7 +101,7 @@ class BoatModel:
             self.rollResist = 8.0  # rolling resistance force (* vel)
             self.max_speed = 20.0
         elif self.boat_type == "large":
-            self.mass = 12000  # kg
+            self.mass = 6000  # kg
             self.inertiaScale = 1.0  # Multiply by mass for inertia
             self.halfWidth = 0.8  # Centre to side of chassis (metres)
             self.cgToFront = 2.0  # Centre of gravity to front of chassis (metres)
@@ -112,7 +113,7 @@ class BoatModel:
             self.wheelWidth = 0.2  # Used for render only
             self.tireGrip = 1000.0  # How much grip tires have
             self.lockGrip = 1  # % of grip available when wheel is locked
-            self.engineForce = -8000.0
+            self.engineForce = -4000.0
             self.brakeForce = 3000.0
             self.eBrakeForce = self.brakeForce / 2.5
             self.weightTransfer = 0.2  # How much weight is transferred during acceleration/braking
@@ -121,7 +122,7 @@ class BoatModel:
             self.cornerStiffnessRear = 5.2
             self.water_resistance = 5  # air resistance (* vel)
             self.rollResist = 1.0  # rolling resistance force (* vel)
-            self.max_speed = 10.0
+            self.max_speed = 15.0
 
         self.inertia = self.mass * self.inertiaScale  # equals mass
         self.length = 2.5 #length
@@ -206,7 +207,7 @@ class BoatModel:
         # Distance is the error
         self.distance_to_goal = math.dist((gx, gy), (cx, cy))
 
-        # Norm 1 = max speed. Decreases linearly.
+        # Norm 1 == max speed. Decreases linearly.
         desired_speed = norm * self.max_speed
         # Positive: too slow. Negative: too fast.
         error = desired_speed - self.abs_velocity
@@ -218,9 +219,6 @@ class BoatModel:
         else:
             self.throttle = 0
             self.brake = bound(k_p * -error, 0.0, 1.0)
-
-
-        # print("Distance: {} | Throttle: {} | Brake: {}".format(distance, self.throttle, self.brake))
 
     def reset_inputs(self):
         self.left = self.right = self.throttle = self.brake = 0.0
@@ -335,7 +333,7 @@ class BoatModel:
 
         # If boat reaches goal at slow speed, consider mission complete.
         distance_to_goal = math.dist((self.position[0], self.position[1]), (self.goal[0], self.goal[1]))
-        if distance_to_goal < self.destination_threshold and self.abs_velocity < 3.0:
+        if distance_to_goal < self.acquisition_threshold and self.abs_velocity < 3.0:
             self.at_destination = True
 
         #  Sim gets unstable at very slow speeds, so just stop the boat

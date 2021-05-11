@@ -10,7 +10,7 @@ class Sim:
     def __init__(self):
         # List of all BoatModels present.
         self.vehicles = []
-        self.avoidance_min_distance = 100
+        self.avoidance_min_distance = 80
         self.avoidance_max_distance = 300
         self.only_frontal_avoidance = True
 
@@ -57,7 +57,7 @@ class Sim:
             relative_heading = (heading_to_obstacle - their_heading) % (2*math.pi)
             distance = math.dist((tx, ty), (mx, my))
             asymmetry = -math.pi/3
-            k_d = 2.0
+            k_d = 3.0
             # Avoid dividing by zero.
             if (max_distance == min_distance):
                 df = 1
@@ -72,7 +72,7 @@ class Sim:
                 df = 0 if distance > max_distance else df
 
             # Additional angle to force boats to choose starboard avoidance when head-on.
-            if math.pi + math.pi/6 > (relative_heading + math.pi) % (2*math.pi) > math.pi - math.pi/8:
+            if math.pi + math.pi > (relative_heading + math.pi) % (2*math.pi) > math.pi - math.pi/8:
                 heading_from_obstacle = ((heading_from_obstacle + 2*math.pi) - asymmetry) % (2*math.pi)
 
             v = np.array([df * np.cos(heading_from_obstacle), df * np.sin(heading_from_obstacle)])
@@ -85,7 +85,11 @@ class Sim:
             if their_id == vehicle_id:
                 continue
             min_distance = self.avoidance_min_distance
-            max_distance = self.avoidance_max_distance if self.concedes(vehicle_id, their_id) else min_distance
+            if self.concedes(vehicle_id, their_id):
+                max_distance = min_distance + (vehicle.relative_speed() * self.avoidance_max_distance)
+            else:
+                max_distance = min_distance
+            max_distance = bound(max_distance, min_distance, self.avoidance_max_distance)
             other_vehicle = self.vehicles[their_id]
             v += velocity_for_avoidance(position, other_vehicle, min_distance, max_distance)
 
