@@ -39,16 +39,17 @@ class BoatSprite(arcade.Sprite):
                "large" : "images/water_ripple_big_000.png"}
     OFFSET = 15
 
-    def __init__(self, scale, center_x, center_y, sim, boat_type="medium"):
+    def __init__(self, game, center_x, center_y, sim, boat_type="medium"):
         """ Create vehicle model and setup sprites """
 
-        # Call the parent init
-        super().__init__(self.IMAGES[boat_type], scale)
+        self.base_sim = sim
+        self.game_handle = game
 
-        self.sim = sim
+        # Call the parent init
+        super().__init__(self.IMAGES[boat_type], self.game_handle.sprite_scaling)
 
         self.length = self.SPRITE_LENGTHS[boat_type]
-        self.vehicle_model = self.sim.add_boat(self.sim, center_x, center_y, boat_type=boat_type)
+        self.vehicle_model = self.base_sim.add_boat(self.base_sim, center_x, center_y, boat_type=boat_type)
 
         self.center_x = center_x
         self.center_y = center_y
@@ -58,11 +59,8 @@ class BoatSprite(arcade.Sprite):
             filename=self.RIPPLES[boat_type].format(boat_type, random.randint(0, 0),
                                               center_x=center_x,
                                               center_y=center_y, hit_box_algorithm="None"))
-        self.ripple_sprite.scale = SPRITE_SCALING + 0.1  # FIXME: Workaround to avoid overlap
+        self.ripple_sprite.scale = self.game_handle.sprite_scaling + 0.1  # FIXME: Workaround to avoid overlap
 
-
-        # Create a variable to hold our speed. 'angle' is created by the parent
-        self.speed = 0
 
     def ripple(self):
         return self.ripple_sprite
@@ -84,7 +82,7 @@ class BoatSprite(arcade.Sprite):
         # print("angle: {}".format(self.angle))
 
         # Use math to find our change based on our speed and angle
-        self.center_x, self.center_y = self.vehicle_model.position
+        self.center_x, self.center_y = self.vehicle_model.get_position(self.game_handle.zoom_factor)
 
         self.update_ripple_sprite(self.radians, self.center_x, self.center_y)
 
@@ -110,6 +108,13 @@ class MyGame(arcade.Window):
         width = graphics_config["width"]
         height = graphics_config["height"]
         title = graphics_config["window_title"]
+        self.sprite_scaling = graphics_config["sprite_scaling"]
+        self.zoom_factor = graphics_config["zoom_factor"]
+        self.viewport_left = 0
+        self.viewport_right = width
+        self.viewport_bottom = 0
+        self.viewport_top = height
+        self.viewport_zoom = 1
 
         # Call the parent class initializer
         super().__init__(width, height, title, resizable=True)
@@ -121,8 +126,8 @@ class MyGame(arcade.Window):
         file_path = os.path.dirname(os.path.abspath(__file__))
         os.chdir(file_path)
 
-        # Simulator common to all agents
-        self.sim = Sim()
+        # Base simulator common to all agents
+        self.base_sim = Sim()
 
         self.all_sprite_list = arcade.SpriteList()
 
@@ -158,7 +163,7 @@ class MyGame(arcade.Window):
     def load_boats(self):
         boats = self.all_configs["sim"]["boats"]
         for boat in boats:
-            boat_sprite = BoatSprite(SPRITE_SCALING, boat["start_x"], boat["start_y"], self.sim, boat["size"])
+            boat_sprite = BoatSprite(self, boat["start_x"], boat["start_y"], self.base_sim, boat["size"])
             boat_sprite.vehicle_model.set_goal(boat["goal_x"], boat["goal_y"])
             boat_sprite.vehicle_model.name = boat["name"]
             boat_sprite.vehicle_model.heading = math.radians(boat["initial_heading"])
@@ -231,8 +236,8 @@ class MyGame(arcade.Window):
 
                 if boat.vehicle_model.at_destination:
                     colour = arcade.color.GRAY
-                boat_x, boat_y = boat.vehicle_model.position
-                goal_x, goal_y = boat.vehicle_model.goal
+                boat_x, boat_y = boat.vehicle_model.get_position(self.zoom_factor)
+                goal_x, goal_y = boat.vehicle_model.get_goal(self.zoom_factor)
                 arcade.draw_circle_filled(goal_x, goal_y, 10, colour)
                 if self.draw_names:
                     name = boat.vehicle_model.name
@@ -246,7 +251,7 @@ class MyGame(arcade.Window):
             resolution = self.potential_field_resolution
             for x1 in range(0, SCREEN_WIDTH, resolution):
                 for y1 in range(0, SCREEN_HEIGHT, resolution):
-                    v = self.sim.get_velocity((x1, y1), 0)
+                    v = self.base_sim.get_velocity((x1, y1), 0)
                     thickness = 1.0
                     length = 20
                     angle = math.atan2(v[1], v[0])
@@ -259,10 +264,13 @@ class MyGame(arcade.Window):
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
                     continue
-                cx, cy = boat.vehicle_model.position
-                min_distance = self.sim.avoidance_min_distance
-                max_distance = min_distance + (boat.vehicle_model.relative_speed() * self.sim.avoidance_max_distance)
-                max_distance = bound(max_distance, min_distance, self.sim.avoidance_max_distance)
+                cx, cy = boat.vehicle_model.get_position(self.zoom_factor)
+                min_distance = self.base_sim.avoidance_min_distance
+                max_distance = min_distance + (boat.vehicle_model.relative_speed() * self.base_sim.avoidance_max_distance)
+                max_distance = bound(max_distance, min_distance, self.base_sim.avoidance_max_distance)
+                # Adjust for zoom factor.
+                min_distance *= self.zoom_factor
+                max_distance *= self.zoom_factor
                 arcade.draw_circle_outline(cx, cy, min_distance, arcade.color.WHITE, 1)
                 arc_angle = math.degrees(boat.vehicle_model.heading) + 90
                 arcade.draw_arc_outline(cx, cy, 2*max_distance, 2*max_distance, arcade.color.WHITE, 0, 180, 1.5, arc_angle, 30)
@@ -271,7 +279,7 @@ class MyGame(arcade.Window):
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
                     continue
-                cx, cy = boat.vehicle_model.position
+                cx, cy = boat.vehicle_model.get_position(self.zoom_factor)
                 throttle = boat.vehicle_model.throttle
                 brake = boat.vehicle_model.brake
                 speed = boat.vehicle_model.abs_velocity
@@ -287,7 +295,7 @@ class MyGame(arcade.Window):
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
                     continue
-                cx, cy = boat.vehicle_model.position
+                cx, cy = boat.vehicle_model.get_position(self.zoom_factor)
                 desired_hdg = boat.vehicle_model.DEBUG_desired_heading
                 length = 40
                 draw_arrow(cx, cy, desired_hdg, length, arcade.color.RED, thickness=2.0)
@@ -334,6 +342,47 @@ class MyGame(arcade.Window):
         self.load_boats()
         # self.setup_borders(10)
         # self.setup_manual3()
+
+    def set_viewport(self, left: float, right: float, bottom: float, top: float):
+        self.viewport_left, self.viewport_right, self.viewport_bottom, self.viewport_top = left, right, bottom, top
+        arcade.set_viewport(left, right, bottom, top)
+
+
+    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
+        self.viewport_zoom = bound(self.viewport_zoom + (scroll_y / 10.0), 1.0, 5.0)
+
+        screen_width = self.all_configs["sim"]["graphics"]["width"]
+        screen_height = self.all_configs["sim"]["graphics"]["height"]
+
+        excess_left = bound(x - ((screen_width / self.viewport_zoom) / 2), -screen_width, 0)
+        excess_right = bound(x + ((screen_width / self.viewport_zoom) / 2) - screen_width, 0, screen_width)
+        excess_bottom = bound(y - ((screen_height / self.viewport_zoom) / 2), -screen_height, 0)
+        excess_top = bound(y + ((screen_height / self.viewport_zoom) / 2) - screen_height, 0, screen_height)
+
+        left = bound(x - ((screen_width / self.viewport_zoom) / 2) - excess_right, 0, screen_width)
+        right = bound(x + ((screen_width / self.viewport_zoom) / 2) - excess_left, 0, screen_width)
+        bottom = bound(y - ((screen_height / self.viewport_zoom) / 2) - excess_top, 0, screen_height)
+        top = bound(y + ((screen_height / self.viewport_zoom) / 2) - excess_bottom, 0, screen_height)
+
+        self.set_viewport(left, right, bottom, top)
+
+    def on_mouse_drag(self, x: float, y: float, dx: float, dy: float, buttons: int, modifiers: int):
+        screen_width = self.all_configs["sim"]["graphics"]["width"]
+        screen_height = self.all_configs["sim"]["graphics"]["height"]
+        left, right, bottom, top = self.viewport_left, self.viewport_right, self.viewport_bottom, self.viewport_top
+
+        excess_left = bound(left + dx, -screen_width, 0)
+        excess_right = bound(right + dx - screen_width, 0, screen_width)
+        excess_bottom = bound(bottom + dy, -screen_height, 0)
+        excess_top = bound(top + dy - screen_height, 0, screen_height)
+
+        left = bound(left + dx - excess_right, 0, screen_width)
+        right = bound(right + dx - excess_left, 0, screen_width)
+        bottom = bound(bottom + dy - excess_top, 0, screen_height)
+        top = bound(top + dy - excess_bottom, 0, screen_height)
+
+        self.set_viewport(left, right, bottom, top)
+
 
 def main(argv):
     """ Main method """

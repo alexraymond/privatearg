@@ -10,8 +10,8 @@ class Sim:
     def __init__(self):
         # List of all BoatModels present.
         self.vehicles = []
-        self.avoidance_min_distance = 80
-        self.avoidance_max_distance = 300
+        self.avoidance_min_distance = 150
+        self.avoidance_max_distance = 500
         self.only_frontal_avoidance = True
 
     def concedes(self, id_a, id_b):

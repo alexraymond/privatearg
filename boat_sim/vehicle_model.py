@@ -22,6 +22,15 @@ class BoatModel:
         self.at_destination = False
         self.name = ""
 
+    def get_position(self, zoom_factor=1):
+        x = self.position[0] * zoom_factor
+        y = self.position[1] * zoom_factor
+        return x, y
+
+    def get_goal(self, zoom_factor=1):
+        x = self.goal[0] * zoom_factor
+        y = self.goal[1] * zoom_factor
+        return x, y
 
     def init_kinematics(self):
         #########
