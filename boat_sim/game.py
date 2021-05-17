@@ -127,7 +127,7 @@ class MyGame(arcade.Window):
         os.chdir(file_path)
 
         # Base simulator common to all agents
-        self.base_sim = Sim()
+        self.base_sim = Sim(sim_config=self.all_configs["sim"])
 
         self.all_sprite_list = arcade.SpriteList()
 
@@ -143,6 +143,7 @@ class MyGame(arcade.Window):
         self.draw_avoidance_boundaries = graphics_config["avoidance_boundaries"]
         self.draw_desired_heading = graphics_config["desired_heading"]
         self.draw_names = graphics_config["names"]
+        self.draw_trajectories = graphics_config["trajectories"]
         self.debug = graphics_config["debug_info"]
 
         self.background_textures = []
@@ -168,6 +169,7 @@ class MyGame(arcade.Window):
             boat_sprite.vehicle_model.name = boat["name"]
             boat_sprite.vehicle_model.heading = math.radians(boat["initial_heading"])
             boat_sprite.vehicle_model.goal_colour = boat["colour"]
+            boat_sprite.vehicle_model.write_trajectories = self.all_configs["sim"]["write_trajectories"]
             self.boat_sprites.append(boat_sprite)
             self.all_sprite_list.extend([boat_sprite, boat_sprite.ripple()])
 
@@ -197,7 +199,6 @@ class MyGame(arcade.Window):
 
         # Draw all the sprites.
         self.all_sprite_list.draw()
-        i = 1
 
         def draw_arrow(x1, y1, angle, length, colour, thickness = 1.0):
             x2 = x1 + length * math.cos(angle)
@@ -224,7 +225,7 @@ class MyGame(arcade.Window):
             for boat in self.boat_sprites:
                 colour_id = boat.vehicle_model.goal_colour
                 if colour_id == "blue":
-                    colour = arcade.color.BLUE
+                    colour = arcade.color.LIGHT_BLUE
                 elif colour_id == "red":
                     colour = arcade.color.RED
                 elif colour_id == "green":
@@ -239,12 +240,16 @@ class MyGame(arcade.Window):
                 boat_x, boat_y = boat.vehicle_model.get_position(self.zoom_factor)
                 goal_x, goal_y = boat.vehicle_model.get_goal(self.zoom_factor)
                 arcade.draw_circle_filled(goal_x, goal_y, 10, colour)
+                if self.draw_trajectories:
+                    trajectory = boat.vehicle_model.trajectory
+                    for i in range(0, len(trajectory), 30):
+                        arcade.draw_point(trajectory[i][0] * self.zoom_factor, trajectory[i][1] * self.zoom_factor, colour, 3)
                 if self.draw_names:
                     name = boat.vehicle_model.name
                     text_colour = arcade.color.WHITE if colour_id == "blue" or colour_id == "red" else arcade.color.BLACK
                     arcade.draw_text(name, goal_x, goal_y, text_colour, 15)
                     arcade.draw_text(name, boat_x, boat_y, colour, 15)
-                i += 1
+
 
         # Draw potential field.
         if self.draw_potential_field:
@@ -275,6 +280,15 @@ class MyGame(arcade.Window):
                 arc_angle = math.degrees(boat.vehicle_model.heading) + 90
                 arcade.draw_arc_outline(cx, cy, 2*max_distance, 2*max_distance, arcade.color.WHITE, 0, 180, 1.5, arc_angle, 30)
 
+        if self.draw_desired_heading:
+            for boat in self.boat_sprites:
+                if boat.vehicle_model.at_destination:
+                    continue
+                cx, cy = boat.vehicle_model.get_position(self.zoom_factor)
+                desired_hdg = boat.vehicle_model.DEBUG_desired_heading
+                length = 40
+                draw_arrow(cx, cy, desired_hdg, length, arcade.color.RED, thickness=2.0)
+
         if self.debug:
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
@@ -291,14 +305,7 @@ class MyGame(arcade.Window):
                                                                                  throttle, brake, speed, int(dist), l, r)
                 arcade.draw_text(debug, cx, cy + 40, arcade.color.RED, 15)
 
-        if self.draw_desired_heading:
-            for boat in self.boat_sprites:
-                if boat.vehicle_model.at_destination:
-                    continue
-                cx, cy = boat.vehicle_model.get_position(self.zoom_factor)
-                desired_hdg = boat.vehicle_model.DEBUG_desired_heading
-                length = 40
-                draw_arrow(cx, cy, desired_hdg, length, arcade.color.RED, thickness=2.0)
+
 
     def on_update(self, delta_time):
         """ Movement and game logic """
@@ -384,20 +391,30 @@ class MyGame(arcade.Window):
         self.set_viewport(left, right, bottom, top)
 
 
-def main(argv):
+def run(config_file):
     """ Main method """
-    config_file = argv[0]
     with open(config_file) as file:
         data = json.load(file)
     headless = data["sim"]["graphics"]["headless"]
+    start = time.time()
     if headless:
-        # TODO: Call sim directly.
-        pass
+        boats_dict = data["sim"]["boats"]
+        sim = Sim(data["sim"])
+        sim.load_boats(boats_dict)
+        frame_counter = 0
+        while sim.is_running:
+            frame_counter += 1
+            if frame_counter % 1000 == 0:
+                print("Simulated {} frames.".format(frame_counter))
+            for boat in sim.boats:
+                boat.simulate_kinematics()
+        end = time.time()
+        print("Time elapsed: {:.2f} seconds".format(end - start))
+        return sim.results_filename
+
     else:
         window = MyGame(config_file)
         window.setup()
         arcade.run()
 
 
-if __name__ == "__main__":
-    main(sys.argv[1:])

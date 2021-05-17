@@ -18,9 +18,16 @@ class BoatModel:
         self.goal_colour = 0
         self.distance_to_goal = 0
         self.boat_type = boat_type
-        self.init_kinematics()
         self.at_destination = False
         self.name = ""
+        self.write_trajectories = False
+        self.fixed_fps = True
+        self.fps = 20
+        self.frame_counter = 0
+        # Do not run for more than 10 minutes.
+        self.frame_limit = 24000
+
+        self.init_kinematics()
 
     def get_position(self, zoom_factor=1):
         x = self.position[0] * zoom_factor
@@ -69,8 +76,8 @@ class BoatModel:
             self.halfWidth = 0.8  # Centre to side of chassis (metres)
             self.cgToFront = 2.0  # Centre of gravity to front of chassis (metres)
             self.cgToRear = 2.0  # Centre of gravity to rear of chassis
-            self.cgToFrontAxle = 1.25  # Centre gravity to front axle
-            self.cgToRearAxle = 1.25  # Centre gravity to rear axle
+            self.cg_to_front_axle = 1.25  # Centre gravity to front axle
+            self.cg_to_rear_axle = 1.25  # Centre gravity to rear axle
             self.cgHeight = 0.55  # Centre gravity height
             self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
             self.wheelWidth = 0.2  # Used for render only
@@ -92,8 +99,8 @@ class BoatModel:
             self.halfWidth = 0.8  # Centre to side of chassis (metres)
             self.cgToFront = 2.0  # Centre of gravity to front of chassis (metres)
             self.cgToRear = 2.0  # Centre of gravity to rear of chassis
-            self.cgToFrontAxle = 1.25  # Centre gravity to front axle
-            self.cgToRearAxle = 1.25  # Centre gravity to rear axle
+            self.cg_to_front_axle = 1.25  # Centre gravity to front axle
+            self.cg_to_rear_axle = 1.25  # Centre gravity to rear axle
             self.cgHeight = 0.55  # Centre gravity height
             self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
             self.wheelWidth = 0.2  # Used for render only
@@ -115,8 +122,8 @@ class BoatModel:
             self.halfWidth = 0.8  # Centre to side of chassis (metres)
             self.cgToFront = 2.0  # Centre of gravity to front of chassis (metres)
             self.cgToRear = 2.0  # Centre of gravity to rear of chassis
-            self.cgToFrontAxle = 1.25  # Centre gravity to front axle
-            self.cgToRearAxle = 1.25  # Centre gravity to rear axle
+            self.cg_to_front_axle = 1.25  # Centre gravity to front axle
+            self.cg_to_rear_axle = 1.25  # Centre gravity to rear axle
             self.cgHeight = 0.55  # Centre gravity height
             self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
             self.wheelWidth = 0.2  # Used for render only
@@ -135,8 +142,8 @@ class BoatModel:
 
         self.inertia = self.mass * self.inertiaScale  # equals mass
         self.length = 2.5 #length
-        self.axleWeightRatioFront = self.cgToRearAxle / self.length  # Percentage of vehicle weight on front
-        self.axleWeightRatioRear = self.cgToFrontAxle / self.length  # Percentage of vehicle weight on rear
+        self.axleWeightRatioFront = self.cg_to_rear_axle / self.length  # Percentage of vehicle weight on front
+        self.axleWeightRatioRear = self.cg_to_front_axle / self.length  # Percentage of vehicle weight on rear
 
         ##############
         # DEBUG INFO #
@@ -251,15 +258,24 @@ class BoatModel:
         return steer
 
     def simulate_kinematics(self):
+        if self.at_destination:
+            return
+
+        self.frame_counter += 1
+
         # dt and fps calculation
         timestamp = time.time()
         dt = timestamp - self.last_update
         if dt == 0.0:
             return
         fps = 1.0 / dt
-        # print(fps)
+        # Ensure minimum fps
         if fps < 20:
             dt = 1.0 / 20.0
+
+        if self.fixed_fps:
+            dt = 1.0 / self.fps
+
         self.last_update = timestamp
 
         # Calculate steering and throttle input autonomously based on a potential field method.
@@ -280,29 +296,29 @@ class BoatModel:
         self.lvy = (cos_hdg * self.vy) - (sin_hdg * self.vx)
 
         # Weight on axles based on centre of gravity and weight shift due to forward/reverse acceleration
-        axleWeightFront = self.mass * (
+        axle_weight_front = self.mass * (
                 self.axleWeightRatioFront * self.gravity - self.weightTransfer * self.lax * self.cgHeight / self.length)
 
-        axleWeightRear = self.mass * (
+        axle_weight_rear = self.mass * (
                 self.axleWeightRatioRear * self.gravity + self.weightTransfer * self.lax * self.cgHeight / self.length)
 
         # Resulting velocity of the wheels as result of the yaw rate of the car body.
         # v = yawrate * r where r is distance from axle to CG and yawRate (angular velocity) in rad/s.
-        yawSpeedFront = self.cgToFrontAxle * self.yaw_rate
-        yawSpeedRear = -self.cgToRearAxle * self.yaw_rate
+        yaw_speed_front = self.cg_to_front_axle * self.yaw_rate
+        yaw_speed_rear = -self.cg_to_rear_axle * self.yaw_rate
 
         # Calculate slip angles for front and rear wheels (a.k.a. alpha)
-        slipAngleFront = math.atan2(self.lvy + yawSpeedFront, math.fabs(self.lvx)) - math.copysign(1,
+        slip_angle_front = math.atan2(self.lvy + yaw_speed_front, math.fabs(self.lvx)) - math.copysign(1,
                                                                                                    self.lvx) * self.steering_angle
-        slipAngleRear = math.atan2(self.lvy + yawSpeedRear, math.fabs(self.lvx))
+        slip_angle_rear = math.atan2(self.lvy + yaw_speed_rear, math.fabs(self.lvx))
 
-        tireGripFront = self.tireGrip
-        tireGripRear = self.tireGrip # * (1.0 * (1.0 - self.lockGrip))  # reduce rear grip when ebrake is on
+        tire_grip_front = self.tireGrip
+        tire_grip_rear = self.tireGrip # * (1.0 * (1.0 - self.lockGrip))  # reduce rear grip when ebrake is on
 
-        frictionForceFront_cy = bound(-self.cornerStiffnessFront * slipAngleFront, -tireGripFront,
-                                      tireGripFront) * axleWeightFront
-        frictionForceRear_cy = bound(-self.cornerStiffnessRear * slipAngleRear, -tireGripRear,
-                                     tireGripRear) * axleWeightRear
+        friction_force_front_cy = bound(-self.cornerStiffnessFront * slip_angle_front, -tire_grip_front,
+                                      tire_grip_front) * axle_weight_front
+        friction_force_rear_cy = bound(-self.cornerStiffnessRear * slip_angle_rear, -tire_grip_rear,
+                                     tire_grip_rear) * axle_weight_rear
 
         #  Get amount of brake/throttle from our inputs
         brake = min(self.brake * self.brakeForce * self.eBrakeForce, self.brakeForce)
@@ -310,20 +326,20 @@ class BoatModel:
 
         #  Resulting force in local car coordinates.
         #  This is implemented as a RWD car only.
-        tractionForce_cx = throttle - brake * math.copysign(1, self.lvx)
-        tractionForce_cy = 0
+        traction_force_cx = throttle - brake * math.copysign(1, self.lvx)
+        traction_force_cy = 0
 
-        dragForce_cx = -self.rollResist * self.lvx - self.water_resistance * self.lvx * math.fabs(self.lvx)
-        dragForce_cy = -self.rollResist * self.lvy - self.water_resistance * self.lvy * math.fabs(self.lvy)
+        drag_force_cx = -self.rollResist * self.lvx - self.water_resistance * self.lvx * math.fabs(self.lvx)
+        drag_force_cy = -self.rollResist * self.lvy - self.water_resistance * self.lvy * math.fabs(self.lvy)
 
         # total force in car coordinates
-        totalForce_cx = dragForce_cx + tractionForce_cx
-        totalForce_cy = dragForce_cy + tractionForce_cy + math.cos(
-            self.steering_angle) * frictionForceFront_cy + frictionForceRear_cy
+        total_force_cx = drag_force_cx + traction_force_cx
+        total_force_cy = drag_force_cy + traction_force_cy + math.cos(
+            self.steering_angle) * friction_force_front_cy + friction_force_rear_cy
 
         # acceleration along car axes
-        self.lax = totalForce_cx / self.mass  # forward/reverse accel
-        self.lay = totalForce_cy / self.mass  # sideways accel
+        self.lax = total_force_cx / self.mass  # forward/reverse accel
+        self.lay = total_force_cy / self.mass  # sideways accel
 
         # acceleration in world coordinates
         self.ax = cos_hdg * self.lax - sin_hdg * self.lay
@@ -338,23 +354,25 @@ class BoatModel:
         # print("absolute acceleration: {}".format(math.sqrt(self.ax**2 + self.ay**2)))
 
         # calculate rotational forces
-        angularTorque = (frictionForceFront_cy + tractionForce_cy) * self.cgToFrontAxle - frictionForceRear_cy * self.cgToRearAxle
+        angular_torque = (friction_force_front_cy + traction_force_cy) * self.cg_to_front_axle - friction_force_rear_cy * self.cg_to_rear_axle
 
         # If boat reaches goal at slow speed, consider mission complete.
         distance_to_goal = math.dist((self.position[0], self.position[1]), (self.goal[0], self.goal[1]))
-        if distance_to_goal < self.acquisition_threshold and self.abs_velocity < 3.0:
+        if (distance_to_goal < self.acquisition_threshold and self.abs_velocity < 3.0)\
+                or self.frame_counter > self.frame_limit:
             self.at_destination = True
+            self.sim.notify_finished_vehicle(self)
 
         #  Sim gets unstable at very slow speeds, so just stop the boat
         if (math.fabs(self.abs_velocity) < 0.5 and throttle == 0.0) or self.at_destination:
-            angularTorque = self.yaw_rate = 0
+            angular_torque = self.yaw_rate = 0
             self.vx = self.vy = self.abs_velocity = 0
 
-        angularAccel = angularTorque / self.inertia
+        angular_acceleration = angular_torque / self.inertia
         # Workaround to avoid jittery movement in beginning of simulation
-        angularAccel = bound(angularAccel, -1.0, 1.0)
+        # angular_acceleration = bound(angular_acceleration, -1.0, 1.0)
 
-        self.yaw_rate += angularAccel * dt
+        self.yaw_rate += angular_acceleration * dt
         # Workaround to avoid powerslides at low speeds.
         if math.fabs(self.abs_velocity < 1.0):
             self.yaw_rate = 0.0
@@ -366,6 +384,20 @@ class BoatModel:
         cx += self.vx * dt
         cy += self.vy * dt
         self.position = (cx, cy)
+        if self.write_trajectories:
+            snapshot = {}
+            # snapshot["boat_id"] = self.boat_id
+            snapshot["timestamp"] = timestamp
+            snapshot["frame"] = self.frame_counter
+            snapshot["x"] = cx
+            snapshot["y"] = cy
+            snapshot["yaw_rate"] = self.yaw_rate
+            snapshot["heading"] = math.degrees(self.heading)
+            snapshot["velocity"] = self.abs_velocity
+            snapshot["angular_accel"] = angular_acceleration
+            snapshot["lax"] = self.lax
+            snapshot["lay"] = self.lay
+            self.sim.trajectories[self.boat_id].append(snapshot)
 
     def relative_speed(self):
         return bound(self.abs_velocity / self.max_speed, 0.0, 1.0)

@@ -4,7 +4,7 @@ from datetime import datetime
 
 graphics_settings = """
     {
-      "headless" : false,
+      "headless" : true,
       "window_title": "Boat Sim",
       "width" : 1900,
       "height" : 900,
@@ -87,9 +87,12 @@ def generate_scenario(num_boats):
     graphics = json.loads(graphics_settings)
     scenario = {"sim": {}}
     scenario["sim"]["graphics"] = graphics
+    scenario["sim"]["avoidance_min_distance"] = 100
+    scenario["sim"]["avoidance_max_distance"] = 500
+    scenario["sim"]["write_trajectories"] = True
     height = graphics["height"] / graphics["zoom_factor"]
     width = graphics["width"] / graphics["zoom_factor"]
-    horizontal_separation = 400
+    horizontal_separation = 800
     max_width = horizontal_separation * num_boats  # Added width so initial scene is empty.
     boat_names = names_string.split('\n')
     boats = []
@@ -103,7 +106,7 @@ def generate_scenario(num_boats):
         size = random.choices(list(size_probabilities.keys()), list(size_probabilities.values()), k=1)[0]
         boat["size"] = size
         boat["start_x"] = positions[i]
-        boat["start_y"] = random.randint(height*0.4, height*0.6)
+        boat["start_y"] = random.randint(height*0.2, height*0.8)
         boat["initial_heading"] = 180 if boat["start_x"] < 0 else 0
         boat["goal_x"] = positions[-i-1]
         boat["goal_y"] = random.randint(height*0.4, height*0.6)
@@ -112,9 +115,9 @@ def generate_scenario(num_boats):
     random.shuffle(boats)
     scenario["sim"]["boats"] = boats
     now = datetime.now()
-    date_string = now.strftime("%d%b-%H%M")
+    date_string = now.strftime("%d%b-%H%M%S")
     filename = "scenario-{}-boats-{}.json".format(num_boats, date_string)
     with open(filename, 'w') as file:
         json.dump(scenario, file, indent=4)
+    return filename
 
-generate_scenario(30)

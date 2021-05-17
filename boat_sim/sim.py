@@ -2,17 +2,28 @@ from vehicle_model import BoatModel
 from utils import *
 import numpy as np
 import math
+import csv
+import json
+from datetime import datetime
 class Sim:
     """
     Main class for computing simulations and game logic in a headless manner.
     """
 
-    def __init__(self):
+    def __init__(self, sim_config):
         # List of all BoatModels present.
-        self.vehicles = []
-        self.avoidance_min_distance = 150
-        self.avoidance_max_distance = 500
+        self.boats = []
+        self.finished_boats = set()
+        self.avoidance_min_distance = sim_config["avoidance_min_distance"]
+        self.avoidance_max_distance = sim_config["avoidance_max_distance"]
+        self.write_trajectories = sim_config["write_trajectories"]
         self.only_frontal_avoidance = True
+        self.trajectories = {}
+        self.sim_config = sim_config
+        self.is_running = True
+        # JSON (preferred) or CSV. Use lowercase.
+        self.output_type = "json"
+        self.results_filename = ""
 
     def concedes(self, id_a, id_b):
         """
@@ -21,9 +32,49 @@ class Sim:
         # print("{} > {}? {}".format(id_a, id_b, id_a < id_b))
         return id_a < id_b
 
+    def notify_finished_vehicle(self, boat):
+        self.finished_boats.add(boat)
+        print("Boat {} reached target!".format(boat.boat_id))
+        if len(self.finished_boats) == len(self.boats):
+            self.is_running = False
+            now = datetime.now()
+            date_string = now.strftime("%d%b-%H%M")
+            if self.output_type == "csv":
+                filename = "result-{}-boats-{}.csv".format(len(self.boats), date_string)
+                self.export_trajectories_csv(filename)
+            elif self.output_type == "json":
+                filename = "result-{}-boats-{}.json".format(len(self.boats), date_string)
+                self.export_trajectories_json(filename)
+                self.results_filename = filename
+
+    def export_trajectories_csv(self, filename):
+        with open(filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            # Get any snapshot and use the keys as headers.
+            headers = self.trajectories[0][0].keys()
+            writer.writerow(headers)
+            for boat in self.boats:
+                boat_id = boat.boat_id
+                for snapshot in self.trajectories[boat_id]:
+                    row = []
+                    for key in snapshot.keys():
+                        row.append(snapshot[key])
+                    writer.writerow(row)
+            file.close()
+
+    def export_trajectories_json(self, filename):
+        output_dict = {}
+        output_dict["boats"] = {}
+        for boat in self.boats:
+            boat_id = boat.boat_id
+            output_dict["boats"][str(boat_id)] = self.trajectories[boat_id]
+        with open(filename, 'w') as file:
+            json.dump(output_dict, file, indent=1)
+            file.close()
+
     def get_velocity(self, position, vehicle_id):
         v = np.zeros(2, dtype=np.float32)
-        goal = self.vehicles[vehicle_id].goal
+        goal = self.boats[vehicle_id].goal
 
         def velocity_to_goal(position, goal):
             gx, gy = goal
@@ -80,7 +131,7 @@ class Sim:
 
         v_goal = velocity_to_goal(position, goal)
         v = v_goal
-        for vehicle in self.vehicles:
+        for vehicle in self.boats:
             their_id = vehicle.boat_id
             if their_id == vehicle_id:
                 continue
@@ -90,13 +141,24 @@ class Sim:
             else:
                 max_distance = min_distance
             max_distance = bound(max_distance, min_distance, self.avoidance_max_distance)
-            other_vehicle = self.vehicles[their_id]
+            other_vehicle = self.boats[their_id]
             v += velocity_for_avoidance(position, other_vehicle, min_distance, max_distance)
 
         return v
 
+    def load_boats(self, boats_dict):
+        for boat_entry in boats_dict:
+            boat = self.add_boat(self, boat_entry["start_x"], boat_entry["start_y"], boat_entry["size"])
+            boat.set_goal(boat_entry["goal_x"], boat_entry["goal_y"])
+            boat.name = boat_entry["name"]
+            boat.heading = math.radians(boat_entry["initial_heading"])
+            boat.goal_colour = boat_entry["colour"]
+            boat.write_trajectories = self.write_trajectories
+
     def add_boat(self, sim, x, y, boat_type):
-        boat_id = len(self.vehicles)
+        boat_id = len(self.boats)
         boat = BoatModel(sim, boat_id, position=(x,y), boat_type=boat_type)
-        self.vehicles.append(boat)
+        if self.write_trajectories:
+            self.trajectories[boat_id] = []
+        self.boats.append(boat)
         return boat
