@@ -40,10 +40,10 @@ class Sim:
             now = datetime.now()
             date_string = now.strftime("%d%b-%H%M")
             if self.output_type == "csv":
-                filename = "result-{}-boats-{}.csv".format(len(self.boats), date_string)
+                filename = "results/result-{}-boats-{}.csv".format(len(self.boats), date_string)
                 self.export_trajectories_csv(filename)
             elif self.output_type == "json":
-                filename = "result-{}-boats-{}.json".format(len(self.boats), date_string)
+                filename = "results/result-{}-boats-{}.json".format(len(self.boats), date_string)
                 self.export_trajectories_json(filename)
                 self.results_filename = filename
 
@@ -64,6 +64,7 @@ class Sim:
 
     def export_trajectories_json(self, filename):
         output_dict = {}
+        output_dict["y_limit"] = self.sim_config["graphics"]["height"]
         output_dict["boats"] = {}
         for boat in self.boats:
             boat_id = boat.boat_id

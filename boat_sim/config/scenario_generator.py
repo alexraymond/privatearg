@@ -88,7 +88,7 @@ def generate_scenario(num_boats):
     scenario = {"sim": {}}
     scenario["sim"]["graphics"] = graphics
     scenario["sim"]["avoidance_min_distance"] = 100
-    scenario["sim"]["avoidance_max_distance"] = 500
+    scenario["sim"]["avoidance_max_distance"] = 400
     scenario["sim"]["write_trajectories"] = True
     height = graphics["height"] / graphics["zoom_factor"]
     width = graphics["width"] / graphics["zoom_factor"]
@@ -100,23 +100,23 @@ def generate_scenario(num_boats):
     positions = [p for p in positions if p < 0 or p > width]
     for i in range(len(positions)):
         boat = {"name": random.choice(boat_names)}
-        size_probabilities = {"small": 0.6,
-                              "medium": 0.35,
-                              "large": 0.05}
+        size_probabilities = {"small": 0.0,
+                              "medium": 1.0,
+                              "large": 0.00}
         size = random.choices(list(size_probabilities.keys()), list(size_probabilities.values()), k=1)[0]
         boat["size"] = size
         boat["start_x"] = positions[i]
-        boat["start_y"] = random.randint(height*0.2, height*0.8)
+        boat["start_y"] = random.randint(height*0.4, height*0.5)
         boat["initial_heading"] = 180 if boat["start_x"] < 0 else 0
         boat["goal_x"] = positions[-i-1]
-        boat["goal_y"] = random.randint(height*0.4, height*0.6)
+        boat["goal_y"] = random.randint(height*0.5, height*0.6)
         boat["colour"] = random.choice(["red", "green", "blue", "yellow"])
         boats.append(boat)
     random.shuffle(boats)
     scenario["sim"]["boats"] = boats
     now = datetime.now()
     date_string = now.strftime("%d%b-%H%M%S")
-    filename = "scenario-{}-boats-{}.json".format(num_boats, date_string)
+    filename = "scenarios/scenario-{}-boats-{}.json".format(num_boats, date_string)
     with open(filename, 'w') as file:
         json.dump(scenario, file, indent=4)
     return filename

@@ -12,6 +12,7 @@ class ResultsManager:
         with open(results_filename) as file:
             results_data = json.load(file)
         self.results = results_data["boats"]
+        self.y_limit = results_data["y_limit"]
 
     def plot_animations(self, ids):
         pass
@@ -33,7 +34,8 @@ class ResultsManager:
 
                 data[boat_id]["x"].append(x)
                 data[boat_id]["y"].append(y)
-            plt.plot(data[boat_id]["x"], data[boat_id]["y"], color=random.choice(colours))
+            plt.ylim([0, self.y_limit*2])
+            plt.plot(data[boat_id]["x"], data[boat_id]["y"], color=colours[int(boat_id) % len(colours)])
         plt.show()
 
 #

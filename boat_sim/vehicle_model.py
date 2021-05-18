@@ -22,9 +22,9 @@ class BoatModel:
         self.name = ""
         self.write_trajectories = False
         self.fixed_fps = True
-        self.fps = 20
+        self.fps = 20.0
         self.frame_counter = 0
-        # Do not run for more than 10 minutes.
+        # Do not run for more than 20 minutes.
         self.frame_limit = 24000
 
         self.init_kinematics()
@@ -267,7 +267,7 @@ class BoatModel:
         timestamp = time.time()
         dt = timestamp - self.last_update
         if dt == 0.0:
-            return
+            dt = 0.01
         fps = 1.0 / dt
         # Ensure minimum fps
         if fps < 20:
