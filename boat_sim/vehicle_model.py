@@ -8,7 +8,7 @@ Made changes to make it more "boaty" are in order.
 
 
 class BoatModel:
-    acquisition_threshold = 50
+    acquisition_threshold = 100
     def __init__(self, sim, boat_id, position = (0,0), boat_type="medium"):
         self.sim = sim
         self.boat_id = boat_id
@@ -101,7 +101,7 @@ class BoatModel:
             self.cgToRear = 2.0  # Centre of gravity to rear of chassis
             self.cg_to_front_axle = 1.25  # Centre gravity to front axle
             self.cg_to_rear_axle = 1.25  # Centre gravity to rear axle
-            self.cgHeight = 0.55  # Centre gravity height
+            self.cgHeight = 2.55  # Centre gravity height
             self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
             self.wheelWidth = 0.2  # Used for render only
             self.tireGrip = 5000.0  # How much grip tires have
@@ -124,7 +124,7 @@ class BoatModel:
             self.cgToRear = 2.0  # Centre of gravity to rear of chassis
             self.cg_to_front_axle = 1.25  # Centre gravity to front axle
             self.cg_to_rear_axle = 1.25  # Centre gravity to rear axle
-            self.cgHeight = 0.55  # Centre gravity height
+            self.cgHeight = 5.55  # Centre gravity height
             self.wheelRadius = 0.3  # Includes tire (also represents height of axle)
             self.wheelWidth = 0.2  # Used for render only
             self.tireGrip = 1000.0  # How much grip tires have
@@ -172,8 +172,8 @@ class BoatModel:
         relative_heading = (math.pi + current_heading - desired_heading) % (2*math.pi)
         tangent = math.tan(relative_heading)
         # Quickly turn to the other side to break away from tangent.
-        if self.distance_to_goal < 100 and math.fabs(tangent) > 1.0:
-            self.left, self.right = 3*self.left, 3*self.right
+        # if self.distance_to_goal < 100 and math.fabs(tangent) > 1.0:
+        #     self.left, self.right = 3*self.left, 3*self.right
 
         self.DEBUG_message = "tan:{:.1f}".format(tangent)
         self.DEBUG_relative_heading = relative_heading
@@ -358,7 +358,7 @@ class BoatModel:
 
         # If boat reaches goal at slow speed, consider mission complete.
         distance_to_goal = math.dist((self.position[0], self.position[1]), (self.goal[0], self.goal[1]))
-        if (distance_to_goal < self.acquisition_threshold and self.abs_velocity < 3.0)\
+        if (distance_to_goal < self.acquisition_threshold and self.abs_velocity < 10.0)\
                 or self.frame_counter > self.frame_limit:
             self.at_destination = True
             self.sim.notify_finished_vehicle(self)
@@ -389,11 +389,12 @@ class BoatModel:
             # snapshot["boat_id"] = self.boat_id
             snapshot["timestamp"] = timestamp
             snapshot["frame"] = self.frame_counter
+            snapshot["dt"] = dt
             snapshot["x"] = cx
             snapshot["y"] = cy
+            # snapshot["velocity"] = self.abs_velocity
             snapshot["yaw_rate"] = self.yaw_rate
             snapshot["heading"] = math.degrees(self.heading)
-            snapshot["velocity"] = self.abs_velocity
             snapshot["angular_accel"] = angular_acceleration
             snapshot["lax"] = self.lax
             snapshot["lay"] = self.lay

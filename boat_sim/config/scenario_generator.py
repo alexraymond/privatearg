@@ -1,5 +1,6 @@
 import json
 import random
+import math
 from datetime import datetime
 
 graphics_settings = """
@@ -88,11 +89,11 @@ def generate_scenario(num_boats):
     scenario = {"sim": {}}
     scenario["sim"]["graphics"] = graphics
     scenario["sim"]["avoidance_min_distance"] = 100
-    scenario["sim"]["avoidance_max_distance"] = 400
+    scenario["sim"]["avoidance_max_distance"] = 1000
     scenario["sim"]["write_trajectories"] = True
     height = graphics["height"] / graphics["zoom_factor"]
     width = graphics["width"] / graphics["zoom_factor"]
-    horizontal_separation = 800
+    horizontal_separation = 1000
     max_width = horizontal_separation * num_boats  # Added width so initial scene is empty.
     boat_names = names_string.split('\n')
     boats = []
@@ -106,10 +107,11 @@ def generate_scenario(num_boats):
         size = random.choices(list(size_probabilities.keys()), list(size_probabilities.values()), k=1)[0]
         boat["size"] = size
         boat["start_x"] = positions[i]
-        boat["start_y"] = random.randint(height*0.4, height*0.5)
-        boat["initial_heading"] = 180 if boat["start_x"] < 0 else 0
+        boat["start_y"] = random.randint(height*0.4, height*0.6)
         boat["goal_x"] = positions[-i-1]
-        boat["goal_y"] = random.randint(height*0.5, height*0.6)
+        boat["goal_y"] = random.randint(height*0.4, height*0.6)
+        heading_to_target = math.atan2(boat["goal_y"] - boat["start_y"], boat["goal_x"] - boat["start_x"]) + math.pi
+        boat["initial_heading"] = math.degrees(heading_to_target)
         boat["colour"] = random.choice(["red", "green", "blue", "yellow"])
         boats.append(boat)
     random.shuffle(boats)

@@ -43,7 +43,7 @@ def parse_workflow(args):
 
     if args.gsr or args.sr or args.results:
         loader = ResultsManager(results_filename)
-        loader.plot_trajectories()
+        loader.plot_results()
 
 
 if __name__ == "__main__":
