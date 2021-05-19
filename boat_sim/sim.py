@@ -109,13 +109,20 @@ class Sim:
             relative_heading = (heading_to_obstacle - their_heading) % (2*math.pi)
             distance = math.dist((tx, ty), (mx, my))
             asymmetry = -math.pi/3
-            k_d = 3.0
+            k_d = 1.0
+            # p = {1.0, 2.0, 3.0} mean linear, quadratic, and cubic decay, respectively.
+            p = 1
+            max_df = 1.0
+
             # Avoid dividing by zero.
             if (max_distance == min_distance):
-                df = 1
+                df = max_df
+            elif distance > max_distance or distance > 1000:
+                df = 0
             else:
-                df = (max_distance - distance) / (max_distance - min_distance)
-            df = bound(k_d * df, 0.0, 2.0)
+                df = k_d * math.pow((max_distance - distance), p) / math.pow((max_distance - min_distance), p)
+
+            df = bound(df, 0.0, max_df)
 
             # Special case: if behind, only consider min distance.
             if self.only_frontal_avoidance and math.pi / 2 < relative_heading < 3 * math.pi / 2:
