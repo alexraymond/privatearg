@@ -48,9 +48,13 @@ class Argument:
 
 
 class PrivateArgument(Argument):
-    def __init__(self, arg_id, descriptive_text, privacy_cost):
+    def __init__(self, arg_id, privacy_cost, descriptive_text="", hypothesis_text="", verified_fact_text=""):
         super(PrivateArgument, self).__init__(arg_id, descriptive_text)
         self.privacy_cost = privacy_cost
+        self.hypothesis_text = hypothesis_text
+        self.verified_fact_text = verified_fact_text
+        self.hypothesis_verifier = None
+        self.fact_verifier = None
 
 
 class ArgumentationFramework:

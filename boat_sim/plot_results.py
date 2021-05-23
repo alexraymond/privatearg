@@ -3,7 +3,7 @@ import random
 import sys
 import math
 import numpy as np
-from scipy.signal import find_peaks
+from scipy import signal
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
@@ -52,6 +52,10 @@ class ResultsManager:
         mean_agg_jerk = 0
         mean_agg_lat_jerk = 0
         mean_agg_yaw = 0
+        first_active_frame = 999999
+        last_active_frame = -999999
+        first_active_x = 999999
+        last_active_x = -999999
 
         for boat_id in boat_ids:
             data[boat_id] = {}
@@ -74,12 +78,24 @@ class ResultsManager:
                 frame = snapshot["frame"]
                 if frame < start_frame or frame > end_frame:
                     continue
+
                 x = snapshot["x"]
                 y = snapshot["y"]
                 lax = math.fabs(snapshot["lax"])
                 lay = math.fabs(snapshot["lay"])
                 acc = math.sqrt(lax**2 + lay**2)
                 yaw_rate = math.fabs(snapshot["yaw_rate"])
+                if yaw_rate > 0.001:
+                    if frame < first_active_frame:
+                        first_active_frame = frame
+                    if frame > last_active_frame:
+                        last_active_frame = frame
+
+                    if x < first_active_x:
+                        first_active_x = x
+                    if x > last_active_x:
+                        last_active_x = x
+
                 dt = snapshot["dt"]
                 # Compute derivatives of magnitude acceleration and lateral acceleration.
                 if prev_acc == -1 or prev_lay == -1:
@@ -152,19 +168,27 @@ class ResultsManager:
             mean_agg_yaw = ((int(boat_id) * mean_agg_yaw) + yaw_area) / (int(boat_id) + 1)
 
             # Overlay current acceleration plot.
-            acc_plot.plot(data[boat_id]["x"], data[boat_id]["acc"], color=current_colour)
+            acc_plot.plot(data[boat_id]["frame"], data[boat_id]["acc"], color=current_colour)
 
             # Overlay current jerk plot.
-            jerk_plot.plot(data[boat_id]["x"], data[boat_id]["jerk"], color=current_colour)
+            jerk_plot.plot(data[boat_id]["frame"], data[boat_id]["jerk"], color=current_colour)
 
             # Overlay current lateral acceleration plot.
-            lay_plot.plot(data[boat_id]["x"], data[boat_id]["lay"], color=current_colour)
+            # sample_freqs, spec_density = signal.periodogram(lay_data, fs=20, scaling='spectrum')
+
+            # lay_plot.semilogy(sample_freqs, spec_density, color=current_colour)
+            # lay_plot.set_ylim([1e-7, 1e3])
+            # r = 2
+            # rolling_lay = np.convolve(lay_data, np.ones(r), 'valid') / r
+            # rolling_lay = np.hstack([rolling_lay, np.zeros(len(data[boat_id]["frame"]) - len(rolling_lay))])
+            lay_plot.plot(data[boat_id]["frame"], data[boat_id]["lay"], color=current_colour)
+
 
             # Overlay current lateral jerk plot.
-            lat_jerk_plot.plot(data[boat_id]["x"], data[boat_id]["lat_jerk"], color=current_colour)
+            lat_jerk_plot.plot(data[boat_id]["frame"], data[boat_id]["lat_jerk"], color=current_colour)
 
             # Overlay current yaw rate plot.
-            yaw_plot.plot(data[boat_id]["x"], data[boat_id]["yaw_rate"], color=current_colour)
+            yaw_plot.plot(data[boat_id]["frame"], data[boat_id]["yaw_rate"], color=current_colour)
         
         # Finalising aggregate yaw plot.
         bar = agg_yaw_plot.bar(len(boat_ids), height=mean_agg_yaw, hatch='/', linestyle='--', edgecolor='k')
@@ -197,29 +221,40 @@ class ResultsManager:
         agg_lat_jerk_plot.set_xticklabels(list(boat_ids) + ["Mean"])
 
         # Write labels and plot details.
-        acc_plot.set_xlabel('X coordinate')
+        acc_plot.set_xlabel('Simulation frame')
         acc_plot.set_ylabel("Acceleration (g)")
+        acc_plot.set_xlim([first_active_frame, last_active_frame])
+        acc_plot.set_ylim([0, 3])
         acc_plot.grid()
         
-        jerk_plot.set_xlabel('X coordinate')
+        jerk_plot.set_xlabel('Simulation frame')
         jerk_plot.set_ylabel('Jerk (g/s)')
+        jerk_plot.set_xlim([first_active_frame, last_active_frame])
+        jerk_plot.set_ylim([0, 30])
         jerk_plot.grid()
         
-        lay_plot.set_xlabel('X coordinate')
+        lay_plot.set_xlabel('Simulation frame')
         lay_plot.set_ylabel('Lateral acceleration (g)')
+        lay_plot.set_xlim([first_active_frame, last_active_frame])
+        lay_plot.set_ylim([0, 3])
         lay_plot.grid()
 
-        lat_jerk_plot.set_xlabel('X coordinate')
+        lat_jerk_plot.set_xlabel('Simulation frame')
         lat_jerk_plot.set_ylabel('Lateral jerk (g/s)')
+        lat_jerk_plot.set_xlim([first_active_frame, last_active_frame])
+        lat_jerk_plot.set_ylim([0, 10])
         lat_jerk_plot.grid()
 
-        yaw_plot.set_xlabel('X coordinate')
+        yaw_plot.set_xlabel('Simulation frame')
         yaw_plot.set_ylabel('Yaw rate (rad/s)')
+        yaw_plot.set_xlim([first_active_frame, last_active_frame])
+        yaw_plot.set_ylim([0, math.pi/2])
         yaw_plot.grid()
         
         trajectories_plot.set_title('Trajectories')
         trajectories_plot.set_xlabel('X coordinate')
         trajectories_plot.set_ylabel('Y coordinate')
+        # trajectories_plot.set_xlim([first_active_x, last_active_x])
 
         plt.tight_layout()
 

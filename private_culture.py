@@ -71,13 +71,13 @@ class RandomCulture(Culture):
                         new_arg.set_verifier(always_true)
                     else:
                         new_arg.set_verifier(generate_verifier_function(idx=new_arg.id()))
-                    self.argumentation_framework.add_argument(new_arg)
+                    self.AF.add_argument(new_arg)
                 if "att" in line:
                     attack = line[line.find("(")+1 : line.find(")")]
                     pair = attack.split(",")
                     attacker = int(pair[0])
                     attacked = int(pair[1])
-                    self.argumentation_framework.add_attack(attacker, attacked)
+                    self.AF.add_attack(attacker, attacked)
         # self.argumentation_framework.stats()
 
 
@@ -111,7 +111,7 @@ class RandomCulture(Culture):
             new_arg.set_verifier(generate_verifier_function(idx=new_arg.id()))
             args.append(new_arg)
 
-        self.argumentation_framework.add_arguments(args)
+        self.AF.add_arguments(args)
 
     def define_attacks(self):
         """
@@ -128,22 +128,22 @@ class RandomCulture(Culture):
                 a = random.randint(1, self.num_args-1)
                 b = random.choice(list(connected))
                 # Avoid double arrows.
-                if b in self.argumentation_framework.arguments_that_attack(a) or b > a:
+                if b in self.AF.arguments_that_attack(a) or b > a:
                     a = b = 0
                     continue
 
-            self.argumentation_framework.add_attack(a, b)
+            self.AF.add_attack(a, b)
             connected.add(a)
             connected.add(b)
 
-        for arg_id in self.argumentation_framework.all_arguments.copy().keys():
+        for arg_id in self.AF.all_arguments.copy().keys():
             if arg_id not in connected:
-                self.argumentation_framework.remove_argument(arg_id)
+                self.AF.remove_argument(arg_id)
         # self.argumentation_framework.make_spanning_graph()
 
         leaves = set()
-        for id in self.argumentation_framework.argument_ids():
-            if id not in self.argumentation_framework.attacked_by().keys():
+        for id in self.AF.argument_ids():
+            if id not in self.AF.attacked_by().keys():
                 leaves.add(id)
         # print("Number of maximal arguments before: {}".format(len(leaves)))
 
@@ -163,15 +163,15 @@ class RandomCulture(Culture):
                 if current_arg in visited:
                     # print("{} has been visited already.".format(current_arg))
                     continue
-                if current_arg in self.argumentation_framework.arguments_that_attack(a):
+                if current_arg in self.AF.arguments_that_attack(a):
                     # print("{} already attacks {}!".format(current_arg, a))
                     continue
                 # print("Adding propagated attack: {} attacks {}".format(a, current_arg))
                 if a > current_arg:
-                    self.argumentation_framework.add_attack(a, current_arg)
+                    self.AF.add_attack(a, current_arg)
                 # print("State of AF: {}".format(self.argumentation_framework.attacks()))
                 # print("Expanding list with {}".format(to_visit.union(self.argumentation_framework.arguments_attacked_by(current_arg))))
-                to_visit.update(self.argumentation_framework.arguments_attacked_by(current_arg))
+                to_visit.update(self.AF.arguments_attacked_by(current_arg))
                 visited.add(current_arg)
 
 
@@ -186,32 +186,32 @@ class RandomCulture(Culture):
                 a = random.randint(1, self.num_args-1)
                 b = random.choice(list(connected))
                 # Avoid double arrows.
-                if b in self.argumentation_framework.arguments_that_attack(a) or b > a:
+                if b in self.AF.arguments_that_attack(a) or b > a:
                     a = b = 0
                     continue
             # if b not in self.argumentation_framework.arguments_attacked_by(a):
             #     print("{} attacks {}".format(a, b))
-            self.argumentation_framework.add_attack(a, b)
+            self.AF.add_attack(a, b)
             # print("State of AF: {}".format(self.argumentation_framework.attacks()))
             connected.add(a)
             connected.add(b)
 
             # Replicate attacks recursively
-            to_visit = self.argumentation_framework.arguments_attacked_by(b).copy()
+            to_visit = self.AF.arguments_attacked_by(b).copy()
             visited = set()
 
             replicate_attacks(a, to_visit, visited)
 
 
-        for arg_id in self.argumentation_framework.all_arguments.copy().keys():
+        for arg_id in self.AF.all_arguments.copy().keys():
             if arg_id not in connected:
                 # print("\nREMOVING ARGUMENT {}\n".format(arg_id))
-                self.argumentation_framework.remove_argument(arg_id)
+                self.AF.remove_argument(arg_id)
         # self.argumentation_framework.make_spanning_graph()
 
         leaves = set()
-        for id in self.argumentation_framework.argument_ids():
-            if id not in self.argumentation_framework.attacked_by().keys():
+        for id in self.AF.argument_ids():
+            if id not in self.AF.attacked_by().keys():
                 leaves.add(id)
         print("Number of maximal arguments before: {}".format(len(leaves)))
         # if len(leaves) > 1 and ensure_single_winner == True:
@@ -235,7 +235,7 @@ class RandomCulture(Culture):
         :return: A flat black-and-white framework.
         """
         self.raw_bw_framework = ArgumentationFramework()
-        for argument in self.argumentation_framework.arguments():
+        for argument in self.AF.arguments():
             # Even indices for defender, odd for challenger.
             # Adding hypothetical arguments.
             black_hypothesis = PrivateArgument(arg_id = argument.id() * 4,
@@ -274,7 +274,7 @@ class RandomCulture(Culture):
 
         # Adding attacks between different arguments in original framework.
         # Each hypothesis attacks both the attacked hypothesis and verified arguments.
-        for attacker_id, attacked_set in self.argumentation_framework.attacks().items():
+        for attacker_id, attacked_set in self.AF.attacks().items():
             black_hypothesis_attacker_id = attacker_id * 4
             white_hypothesis_attacker_id = attacker_id * 4 + 1
 

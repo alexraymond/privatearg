@@ -101,8 +101,8 @@ def generate_scenario(num_boats):
     positions = [p for p in positions if p < 0 or p > width]
     for i in range(len(positions)):
         boat = {"name": random.choice(boat_names)}
-        size_probabilities = {"small": 0.0,
-                              "medium": 1.0,
+        size_probabilities = {"small": 1.0,
+                              "medium": 0.0,
                               "large": 0.00}
         size = random.choices(list(size_probabilities.keys()), list(size_probabilities.values()), k=1)[0]
         boat["size"] = size

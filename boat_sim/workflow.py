@@ -10,7 +10,8 @@ def parse_workflow(args):
     parser.add_argument('--g', action='store_true', help='Generates scenario file with N boats (does not simulate).')
     parser.add_argument('--gsr', action='store_true', help='Generates and simulates scenario file'
                                                            ' with N boats, printing results.')
-    parser.add_argument('--sr', action='store_true', help='Runs scenario file with N boats and prints results.')
+    parser.add_argument('--sr', action='store_true', help='Runs scenario file with N boats and plots results.')
+    parser.add_argument('--r', action='store_true', help='Plots results from file.')
     parser.add_argument('--scenario', metavar='path', type=str, action='store', help='JSON file containing scenario.')
     parser.add_argument('--results', metavar='path', type=str, action='store', help='JSON file containing results.')
     args = parser.parse_args(args)
@@ -37,11 +38,15 @@ def parse_workflow(args):
         results_filename = run(scenario_file)
         print("Results file {} generated.".format(results_filename))
 
+
     #############
     #  RESULTS  #
     #############
 
-    if args.gsr or args.sr or args.results:
+    if args.results:
+        results_filename = args.results
+
+    if args.gsr or args.sr or (args.r and args.results):
         loader = ResultsManager(results_filename)
         loader.plot_results()
 

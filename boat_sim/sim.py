@@ -117,7 +117,7 @@ class Sim:
             # Avoid dividing by zero.
             if (max_distance == min_distance):
                 df = max_df
-            elif distance > max_distance or distance > 1000:
+            elif distance > max_distance or distance > 100:
                 df = 0
             else:
                 df = k_d * math.pow((max_distance - distance), p) / math.pow((max_distance - min_distance), p)

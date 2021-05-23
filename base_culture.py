@@ -2,7 +2,7 @@ from argument import ArgumentationFramework
 
 class Culture:
     def __init__(self):
-        self.argumentation_framework = ArgumentationFramework()
+        self.AF = ArgumentationFramework()
         self.properties = {}
         self.name = None
 
@@ -16,7 +16,7 @@ class Culture:
         pass
 
     def arguments_that_attack_list(self, argument_list):
-        return self.argumentation_framework.arguments_that_attack_list(argument_list)
+        return self.AF.arguments_that_attack_list(argument_list)
 
     def arguments_attacked_by_list(self, argument_list):
-        return self.argumentation_framework.arguments_attacked_by_list(argument_list)
+        return self.AF.arguments_attacked_by_list(argument_list)
