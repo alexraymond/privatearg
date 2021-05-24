@@ -1,4 +1,5 @@
 from agent_queue import *
+from boat_culture import *
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import time
@@ -142,7 +143,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
         with open('experiment_id', "r") as id_file:
             experiment_id = int(id_file.read())
             id_file.close()
-        base_queue = AgentQueue(ArgStrategy.ALL_ARGS, size=queue_size, privacy_budget=max_privacy_budget)
+        base_queue = AgentQueue(ArgStrategy.ALL_ARGS, culture=BoatCulture(), size=queue_size, privacy_budget=max_privacy_budget)
         print("\nExperiment {}".format(experiment_id))
         t_before_experiment = time.time()
         random.seed(experiment_id)
@@ -168,7 +169,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
             if using_ground_truth:
                 baseline_general = copy.deepcopy(base_queue)
                 tbefore = time.time()
-                baseline_general = baseline_general.compute_ground_truth_matrix()
+                baseline_general = baseline_general.compute_ground_truth_matrix_parallel()
                 delta = time.time() - tbefore
                 print("Time computing ground truth matrix: {:.0f}s".format(delta))
                 baseline_random = baseline_general
@@ -197,9 +198,6 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
 
         for g in range(0, max_privacy_budget, 2):
             print("{}".format(g), end=" ")
-
-
-
 
             random.seed(experiment_id)
             a_random, b_random, c_random, tp, uf_random = run_test(base_queue, baseline_random, g,

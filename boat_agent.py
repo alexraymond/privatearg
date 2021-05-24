@@ -1,4 +1,4 @@
-from agent_queue import Agent
+from agent import Agent
 
 class BoatAgent(Agent):
     def __init__(self, id, max_privacy_budget=10):
@@ -14,7 +14,7 @@ class BoatAgent(Agent):
     def culture_properties(self):
         if self.boat_culture is None:
             return None
-        return self.boat_culture.__dict__.get("agent_properties", None)
+        return self.boat_culture.__dict__.get("properties", None)
 
     def set_culture(self, culture):
         self.boat_culture = culture

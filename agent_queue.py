@@ -6,47 +6,18 @@ import copy
 import scipy.stats as stats
 import logging, sys
 import numpy as np
+import os
+import subprocess
+from multiprocessing.pool import ThreadPool
 
 from utils import *
 from enum import Enum, IntEnum
 from private_culture import RandomCulture
+from boat_culture import BoatCulture
+from agent import Agent
+from boat_agent import BoatAgent
 
 
-class Agent:
-    def __init__(self, id, max_privacy_budget=10):
-        self.id = id
-        self.properties = {}
-        self.culture = None
-        self.max_privacy_budget = max_privacy_budget
-        self.privacy_budget = self.max_privacy_budget
-        self.argued_with = []
-        self.unfair_perception_score = 0
-
-    def set_max_privacy_budget(self, privacy_budget):
-        self.max_privacy_budget = privacy_budget
-        self.reset_privacy_budget()
-
-    def reset_privacy_budget(self):
-        self.privacy_budget = self.max_privacy_budget
-
-    def set_culture(self, culture):
-        self.culture = culture
-        self.properties = self.culture.properties.copy()
-
-        # Randomise values for random culture.
-        if isinstance(self.culture, RandomCulture):
-            for key, value in self.properties.items():
-                self.properties[key] = random.randint(0, 1000)
-                # dist = []
-                # for i in range(21):
-                #     if i > key:
-                #         dist.append(random.randint(0, 1000))
-                #     else:
-                #         dist.append(0)
-                # self.properties[key] = random.choice(dist)
-
-    def has_argued_with(self, agent_id):
-        return agent_id in self.argued_with
 
 
 class ArgStrategy(Enum):
@@ -86,9 +57,15 @@ class AgentQueue:
 
     def init_queue(self, privacy_budget):
         for i in range(self.size):
-            new_agent = Agent(i, max_privacy_budget=privacy_budget)
-            new_agent.set_culture(self.culture)
-            self.queue.append(new_agent)
+            if type(self.culture) is BoatCulture:
+                new_boat = BoatAgent(i, max_privacy_budget=privacy_budget)
+                new_boat.set_culture(self.culture)
+                self.culture.initialise_random_agent(new_boat)
+                self.queue.append(new_boat)
+            else:
+                new_agent = Agent(i, max_privacy_budget=privacy_budget)
+                new_agent.set_culture(self.culture)
+                self.queue.append(new_agent)
 
     def queue_string(self):
         text = ""
@@ -208,6 +185,77 @@ class AgentQueue:
                     self.TOTAL_NO += 1
                 else:
                     print("Error computing extensions")
+
+        return winners
+
+    def compute_ground_truth_matrix_parallel(self):
+        """
+        Computes the ground truth by removing all unverified arguments from BW framework
+        and calculating skeptical acceptance of motion.
+        :return: Sorted ground truth.
+        """
+        ground_truth = copy.deepcopy(self)
+        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        winners = {}
+        pairs = []
+        results = []
+        for i in range(0, len(ground_truth.queue)):
+            for j in range(0, len(ground_truth.queue)):
+                if i == j:
+                    continue
+                defender = ground_truth.queue[i]
+                challenger = ground_truth.queue[j]
+                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+
+                to_remove = []
+                for argument_id in bw_framework.all_arguments:
+                    argument_obj = bw_framework.argument(argument_id)
+                    if is_black_arg(argument_id):
+                        verified = argument_obj.verify(defender, challenger)
+                    else:
+                        verified = argument_obj.verify(challenger, defender)
+                    if not verified:
+                        to_remove.append(argument_id)
+                        # if is_verified_arg(argument_id):
+                        #     to_remove.append(argument_id - 2)
+
+                for argument_id in to_remove:
+                    bw_framework.remove_argument(argument_id)
+
+                filename = "temp_frameworks/{}-{}.apx".format(defender.id, challenger.id)
+                with open(filename, 'w') as file:
+                    file.write(bw_framework.to_aspartix_id())
+                pairs.append((defender.id, challenger.id))
+
+        def run_solver_detached(pair):
+            defender, challenger = pair
+            filename = "temp_frameworks/{}-{}.apx".format(defender, challenger)
+            solver_location = "mu-toksia/mu-toksia.exe"
+            semantics = "DS-PR"
+            arg_str = "1"
+            result = subprocess.run([solver_location, "-p", semantics, "-fo", "apx", "-f", "sample.apx",
+                                     "-a", arg_str],
+                                    capture_output=True, text=True)
+            return result.stdout
+
+        thread_pool = ThreadPool()
+        solver_results = thread_pool.map(run_solver_detached, pairs)
+        thread_pool.close()
+        thread_pool.join()
+        results = list(zip(solver_results, pairs))
+
+        for result in results:
+            solver_result, (defender, challenger) = result
+            if "YES" in solver_result:
+                # Challenger wins.
+                winners[(defender, challenger)] = challenger
+                self.TOTAL_YES += 1
+            elif "NO" in solver_result:
+                # Defender wins.
+                winners[(defender, challenger)] = defender
+                self.TOTAL_NO += 1
+            else:
+                print("Error computing extensions")
 
         return winners
 
