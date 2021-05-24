@@ -99,26 +99,33 @@ class VehicleAge(IntEnum):
     Old = auto()
     Vintage = auto()
 
+def always_true(*args, **kwargs):
+    return True
 
 class BoatCulture(Culture):
     def __init__(self):
         self.ids = {}
         super().__init__()
         self.name = "Boat Culture"
+        self.raw_bw_framework = None
 
-        self.agent_properties = {"BoatCategory": BoatCategory.Civilian,
-                                 "TaskedStatus": TaskedStatus.Returning,
-                                 "TaskNature": TaskNature.Leisure,
-                                 "EmergencyNature": EmergencyNature.NoEmergency,
-                                 "PayloadType": PayloadType.Empty,
-                                 "SensitivePayload": SensitivePayload.NoSensitivePayload,
-                                 "DiplomaticCredentials": DiplomaticCredentials.NoCredentials,
-                                 "MilitaryRank": MilitaryRank.NoRank,
-                                 "VIPIdentity": VIPIdentity.OrdinaryPerson,
-                                 "SuperVIP": SuperVIP.NoSuperVIP,
-                                 "UndercoverOps": UndercoverOps.NoSpy,
-                                 "VehicleCost": VehicleCost.Cheap,
-                                 "VehicleAge": 40}
+        self.properties = {"BoatCategory": BoatCategory.Civilian,
+                           "TaskedStatus": TaskedStatus.Returning,
+                           "TaskNature": TaskNature.Leisure,
+                           "EmergencyNature": EmergencyNature.NoEmergency,
+                           "PayloadType": PayloadType.Empty,
+                           "SensitivePayload": SensitivePayload.NoSensitivePayload,
+                           "DiplomaticCredentials": DiplomaticCredentials.NoCredentials,
+                           "MilitaryRank": MilitaryRank.NoRank,
+                           "VIPIdentity": VIPIdentity.OrdinaryPerson,
+                           "SuperVIP": SuperVIP.NoSuperVIP,
+                           "UndercoverOps": UndercoverOps.NoSpy,
+                           "VehicleCost": VehicleCost.Cheap,
+                           "VehicleAge": VehicleAge.BrandNew}
+
+        self.create_arguments()
+        self.define_attacks()
+        self.generate_bw_framework()
 
     def create_arguments(self):
         """
@@ -143,7 +150,7 @@ class BoatCulture(Culture):
                                           privacy_cost=0)
         self.ids["higher_category"] = _id
 
-        def higher_category_hv(my: BoatAgent):
+        def higher_category_hv(my: BoatAgent, their: BoatAgent):
             return my.BoatCategory > BoatCategory.Civilian
 
         def higher_category_fv(my: BoatAgent, their: BoatAgent):
@@ -162,7 +169,7 @@ class BoatCulture(Culture):
                                         privacy_cost=3)
         self.ids["tasked_status"] = _id
 
-        def tasked_status_hv(my: BoatAgent):
+        def tasked_status_hv(my: BoatAgent, their: BoatAgent):
             return my.TaskedStatus > TaskedStatus.AtEase
 
         def tasked_status_fv(my: BoatAgent, their: BoatAgent):
@@ -181,7 +188,7 @@ class BoatCulture(Culture):
                                       privacy_cost=5)
         self.ids["task_nature"] = _id
 
-        def task_nature_hv(my: BoatAgent):
+        def task_nature_hv(my: BoatAgent, their: BoatAgent):
             return my.TaskNature > TaskNature.Leisure
 
         def task_nature_fv(my: BoatAgent, their: BoatAgent):
@@ -200,7 +207,7 @@ class BoatCulture(Culture):
                                         privacy_cost=5)
         self.ids["has_emergency"] = _id
 
-        def has_emergency_hv(my: BoatAgent):
+        def has_emergency_hv(my: BoatAgent, their: BoatAgent):
             return my.EmergencyNature > EmergencyNature.NoEmergency
 
         def has_emergency_fv(my: BoatAgent, their: BoatAgent):
@@ -219,7 +226,7 @@ class BoatCulture(Culture):
                                        privacy_cost=5)
         self.ids["payload_type"] = _id
 
-        def payload_type_hv(my: BoatAgent):
+        def payload_type_hv(my: BoatAgent, their: BoatAgent):
             return my.PayloadType > PayloadType.Empty
 
         def payload_type_fv(my: BoatAgent, their: BoatAgent):
@@ -238,7 +245,7 @@ class BoatCulture(Culture):
                                             privacy_cost=15)
         self.ids["sensitive_payload"] = _id
 
-        def sensitive_payload_hv(my: BoatAgent):
+        def sensitive_payload_hv(my: BoatAgent, their: BoatAgent):
             return my.SensitivePayload > SensitivePayload.NoSensitivePayload
 
         def sensitive_payload_fv(my: BoatAgent, their: BoatAgent):
@@ -257,7 +264,7 @@ class BoatCulture(Culture):
                                                  privacy_cost=15)
         self.ids["diplomatic_credentials"] = _id
 
-        def diplomatic_credentials_hv(my: BoatAgent):
+        def diplomatic_credentials_hv(my: BoatAgent, their: BoatAgent):
             return my.DiplomaticCredentials > DiplomaticCredentials.NoCredentials
 
         def diplomatic_credentials_fv(my: BoatAgent, their: BoatAgent):
@@ -276,7 +283,7 @@ class BoatCulture(Culture):
                                         privacy_cost=7)
         self.ids["military_rank"] = _id
 
-        def military_rank_hv(my: BoatAgent):
+        def military_rank_hv(my: BoatAgent, their: BoatAgent):
             return my.MilitaryRank > MilitaryRank.NoRank
 
         def military_rank_fv(my: BoatAgent, their: BoatAgent):
@@ -295,7 +302,7 @@ class BoatCulture(Culture):
                                        privacy_cost=7)
         self.ids["vip_identity"] = _id
 
-        def vip_identity_hv(my: BoatAgent):
+        def vip_identity_hv(my: BoatAgent, their: BoatAgent):
             return my.VIPIdentity > VIPIdentity.OrdinaryPerson
 
         def vip_identity_fv(my: BoatAgent, their: BoatAgent):
@@ -314,7 +321,7 @@ class BoatCulture(Culture):
                                     privacy_cost=20)
         self.ids["super_vip"] = _id
 
-        def super_vip_hv(my: BoatAgent):
+        def super_vip_hv(my: BoatAgent, their: BoatAgent):
             return my.SuperVIP > SuperVIP.NoSuperVIP
 
         def super_vip_fv(my: BoatAgent, their: BoatAgent):
@@ -333,7 +340,7 @@ class BoatCulture(Culture):
                                          privacy_cost=30)
         self.ids["undercover_ops"] = _id
 
-        def undercover_ops_hv(my: BoatAgent):
+        def undercover_ops_hv(my: BoatAgent, their: BoatAgent):
             return my.UndercoverOps > UndercoverOps.NoSpy
 
         def undercover_ops_fv(my: BoatAgent, their: BoatAgent):
@@ -352,7 +359,7 @@ class BoatCulture(Culture):
                                        privacy_cost=10)
         self.ids["vehicle_cost"] = _id
 
-        def vehicle_cost_hv(my: BoatAgent):
+        def vehicle_cost_hv(my: BoatAgent, their: BoatAgent):
             return my.VehicleCost > VehicleCost.Cheap
 
         def vehicle_cost_fv(my: BoatAgent, their: BoatAgent):
@@ -367,11 +374,11 @@ class BoatCulture(Culture):
         _id += 1
         vehicle_age = PrivateArgument(arg_id=_id,
                                       hypothesis_text="I believe my vehicle is older than yours.",
-                                      verified_fact_text="My vehicle cost at least as old as yours, or more.",
+                                      verified_fact_text="My vehicle is at least as old as yours, or more.",
                                       privacy_cost=4)
         self.ids["vehicle_age"] = _id
 
-        def vehicle_age_hv(my: BoatAgent):
+        def vehicle_age_hv(my: BoatAgent, their: BoatAgent):
             return my.VehicleAge > VehicleAge.BrandNew
 
         def vehicle_age_fv(my: BoatAgent, their: BoatAgent):
@@ -477,6 +484,7 @@ class BoatCulture(Culture):
         super_vip_prob = {SuperVIP.NoSuperVIP: 0.8,
                           SuperVIP.PrimeMinister: 0.15,
                           SuperVIP.HeadOfState: 0.05}
+        agent.SuperVIP = sample(super_vip_prob)
 
         # Probabilities for UndercoverOps.
         if agent.BoatCategory <= BoatCategory.Corporate:
@@ -488,7 +496,6 @@ class BoatCulture(Culture):
 
         agent.VehicleCost = sample(list(VehicleCost))
         agent.VehicleAge = sample(list(VehicleAge))
-
 
     def define_attacks(self):
         """
@@ -508,7 +515,7 @@ class BoatCulture(Culture):
         attack(ID["super_vip"], ID["motion"])
         attack(ID["vehicle_cost"], ID["motion"])
         attack(ID["vehicle_age"], ID["motion"])
-        
+
         # Attacks to vehicle_age.
         attack(ID["higher_category"], ID["vehicle_age"])
         attack(ID["tasked_status"], ID["vehicle_age"])
@@ -519,7 +526,7 @@ class BoatCulture(Culture):
         attack(ID["vip_identity"], ID["vehicle_age"])
         attack(ID["super_vip"], ID["vehicle_age"])
         attack(ID["vehicle_cost"], ID["vehicle_age"])
-        
+
         # Attacks to vehicle_cost.
         attack(ID["higher_category"], ID["vehicle_cost"])
         attack(ID["tasked_status"], ID["vehicle_cost"])
@@ -596,4 +603,66 @@ class BoatCulture(Culture):
         # Attacks to has_emergency.
         attack(ID["super_vip"], ID["has_emergency"])
 
-        
+    def generate_bw_framework(self):
+        """
+        This function generates and populates a black-and-white framework (forced bipartition) from an existing culture.
+        A black-and-white framework is built with the following rules:
+        1. Every argument is represented by 4 nodes, black and white X hypothesis and verified.
+        2. Every attack between arguments is reconstructed between nodes of different colours.
+        :return: A flat black-and-white framework.
+        """
+        self.raw_bw_framework = ArgumentationFramework()
+        for argument in self.AF.arguments():
+            # Even indices for defender, odd for challenger.
+            # Adding hypothetical arguments.
+            black_hypothesis = PrivateArgument(arg_id = argument.id() * 4,
+                                               descriptive_text = argument.hypothesis_text,
+                                               privacy_cost = argument.privacy_cost)
+            white_hypothesis = PrivateArgument(arg_id = argument.id() * 4 + 1,
+                                               descriptive_text = argument.hypothesis_text,
+                                               privacy_cost = argument.privacy_cost)
+            h_verifier = argument.hypothesis_verifier if argument.hypothesis_verifier else always_true
+            black_hypothesis.set_verifier(h_verifier)
+            white_hypothesis.set_verifier(h_verifier)
+
+            # Adding verified arguments.
+            black_verified = PrivateArgument(arg_id=argument.id() * 4 + 2,
+                                             descriptive_text=argument.verified_fact_text,
+                                             privacy_cost=argument.privacy_cost)
+            white_verified = PrivateArgument(arg_id=argument.id() * 4 + 3,
+                                             descriptive_text=argument.verified_fact_text,
+                                             privacy_cost=argument.privacy_cost)
+            f_verifier = argument.fact_verifier if argument.fact_verifier else argument.verifier()
+            black_verified.set_verifier(f_verifier)
+            white_verified.set_verifier(f_verifier)
+
+            self.raw_bw_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
+
+            # Adding mutual attacks between contradictory hypotheses.
+            self.raw_bw_framework.add_attack(black_hypothesis.id(), white_hypothesis.id())
+            self.raw_bw_framework.add_attack(white_hypothesis.id(), black_hypothesis.id())
+
+            # Adding mutual attacks between contradictory verified arguments.
+            self.raw_bw_framework.add_attack(black_verified.id(), white_verified.id())
+            self.raw_bw_framework.add_attack(white_verified.id(), black_verified.id())
+
+            # Adding attacks between immediate verified and hypothetical arguments.
+            self.raw_bw_framework.add_attack(black_verified.id(), white_hypothesis.id())
+            self.raw_bw_framework.add_attack(white_verified.id(), black_hypothesis.id())
+
+        # Adding attacks between different arguments in original framework.
+        # Each hypothesis attacks both the attacked hypothesis and verified arguments.
+        for attacker_id, attacked_set in self.AF.attacks().items():
+            black_hypothesis_attacker_id = attacker_id * 4
+            white_hypothesis_attacker_id = attacker_id * 4 + 1
+
+            # Reproducing previous attacks, crossing between black and white nodes.
+            for attacked_id in attacked_set:
+                black_hypothesis_attacked_id = attacked_id * 4
+                white_hypothesis_attacked_id = attacked_id * 4 + 1
+                black_verified_attacked_id = attacked_id * 4 + 2
+                white_verified_attacked_id = attacked_id * 4 + 3
+                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_hypothesis_attacked_id)
+                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_verified_attacked_id)
+                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_hypothesis_attacked_id)
+                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_verified_attacked_id)

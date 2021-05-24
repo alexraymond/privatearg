@@ -239,24 +239,25 @@ class RandomCulture(Culture):
             # Even indices for defender, odd for challenger.
             # Adding hypothetical arguments.
             black_hypothesis = PrivateArgument(arg_id = argument.id() * 4,
-                                               descriptive_text = "b" + str(argument.id()),
+                                               descriptive_text = argument.hypothesis_text,
                                                privacy_cost = argument.privacy_cost)
-            black_hypothesis.set_verifier(always_true)
             white_hypothesis = PrivateArgument(arg_id = argument.id() * 4 + 1,
-                                               descriptive_text = "w" + str(argument.id()),
+                                               descriptive_text = argument.hypothesis_text,
                                                privacy_cost = argument.privacy_cost)
-            white_hypothesis.set_verifier(always_true)
+            h_verifier = argument.hypothesis_verifier if argument.hypothesis_verifier else always_true
+            black_hypothesis.set_verifier(h_verifier)
+            white_hypothesis.set_verifier(h_verifier)
 
             # Adding verified arguments.
             black_verified = PrivateArgument(arg_id=argument.id() * 4 + 2,
-                                             descriptive_text="V-b" + str(argument.id()),
+                                             descriptive_text=argument.verified_fact_text,
                                              privacy_cost=argument.privacy_cost)
-            black_verified.set_verifier(argument.verifier())
-
             white_verified = PrivateArgument(arg_id=argument.id() * 4 + 3,
-                                             descriptive_text="V-w" + str(argument.id()),
+                                             descriptive_text=argument.verified_fact_text,
                                              privacy_cost=argument.privacy_cost)
-            white_verified.set_verifier(argument.verifier())
+            f_verifier = argument.fact_verifier if argument.fact_verifier else argument.verifier()
+            black_verified.set_verifier(f_verifier)
+            white_verified.set_verifier(f_verifier)
 
             self.raw_bw_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
 

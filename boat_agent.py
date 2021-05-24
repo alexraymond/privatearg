@@ -1,9 +1,9 @@
 from agent_queue import Agent
-from boat_culture import *
 
 class BoatAgent(Agent):
     def __init__(self, id, max_privacy_budget=10):
         super().__init__(id, max_privacy_budget)
+        self.properties = {}
 
     def __getitem__(self, item):
         return self.__dict__.get(item, None)
@@ -19,10 +19,11 @@ class BoatAgent(Agent):
     def set_culture(self, culture):
         self.boat_culture = culture
         if self.culture_properties() is None:
-            print("RoadCell::set_culture: Culture {} has no properties.".format(culture.name))
+            print("BoatAgent::set_culture: Culture {} has no properties.".format(culture.name))
             return
         for p, v in self.culture_properties().items():
             self.__setattr__(p, v)
+            self.properties[p] = v
         self.sorted_properties = sorted(self.culture_properties().keys())
         ####
 

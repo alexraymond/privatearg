@@ -8,11 +8,12 @@ import logging, sys
 import numpy as np
 
 from utils import *
-from enum import Enum
+from enum import Enum, IntEnum
 from private_culture import RandomCulture
 
+
 class Agent:
-    def __init__(self, id, max_privacy_budget = 10):
+    def __init__(self, id, max_privacy_budget=10):
         self.id = id
         self.properties = {}
         self.culture = None
@@ -44,10 +45,9 @@ class Agent:
                 #         dist.append(0)
                 # self.properties[key] = random.choice(dist)
 
-
-
     def has_argued_with(self, agent_id):
         return agent_id in self.argued_with
+
 
 class ArgStrategy(Enum):
     RANDOM_CHOICE_NO_PRIVACY = 1
@@ -66,10 +66,11 @@ class AgentQueue:
     TOTAL_YES = 0
     TOTAL_NO = 0
     TOTAL_BAD = 0
-    def __init__(self, strategy: ArgStrategy, size = 30, privacy_budget = 10):
+
+    def __init__(self, strategy: ArgStrategy, culture=None, size=30, privacy_budget=10):
         self.queue = []
         self.size = size
-        self.culture = RandomCulture()
+        self.culture = RandomCulture() if culture is None else copy.deepcopy(culture)
         self.init_queue(privacy_budget)
         self.strategy = strategy
         self.bw_framework = None
@@ -129,7 +130,6 @@ class AgentQueue:
                 for argument_id in to_remove:
                     bw_framework.remove_argument(argument_id)
 
-
                 solver_result = bw_framework.run_solver(semantics="DS-PR", arg_str="1")
                 pair = (defender.id, challenger.id)
                 if "YES" in solver_result:
@@ -138,7 +138,8 @@ class AgentQueue:
 
                     anti_pair = (challenger.id, defender.id)
                     self.TOTAL_YES += 1
-                    logging.debug("DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, challenger.id))
+                    logging.debug(
+                        "DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, challenger.id))
                     status_quo[pair] = False
                 elif "NO" in solver_result:
                     # Defender wins.
@@ -146,7 +147,8 @@ class AgentQueue:
                     # pair = (challenger.id, defender.id)
                     anti_pair = (defender.id, challenger.id)
                     self.TOTAL_NO += 1
-                    logging.debug("DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, defender.id))
+                    logging.debug(
+                        "DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, defender.id))
                     status_quo[pair] = True
                 else:
                     print("Error computing extensions")
@@ -209,7 +211,6 @@ class AgentQueue:
 
         return winners
 
-
     def relative_queue(self, ground_truth):
         """
         Prints a queue with ids relative to a ground truth queue.
@@ -254,7 +255,7 @@ class AgentQueue:
         self.rate_local_unfairness = aggregate_local_unfairness / interaction_count
         return winners
 
-    def interact_all(self, gt_result = None):
+    def interact_all(self, gt_result=None):
         """
         Agents will interact with their neighbours.
         Considering the queue ordering, every agent will attempt to move towards index 0.
@@ -280,13 +281,13 @@ class AgentQueue:
                     if i >= len(self.queue):
                         break
                     if gt_result is None:
-                        status_quo = self.interact_pair(self.queue[i-1], self.queue[i])
+                        status_quo = self.interact_pair(self.queue[i - 1], self.queue[i])
                     else:
-                        status_quo = gt_result[self.queue[i-1].id, self.queue[i].id]
+                        status_quo = gt_result[self.queue[i - 1].id, self.queue[i].id]
                     interaction_count += 1
                     if not status_quo:
                         # Then swap.
-                        self.queue[i-1], self.queue[i] = self.queue[i], self.queue[i-1]
+                        self.queue[i - 1], self.queue[i] = self.queue[i], self.queue[i - 1]
                         swaps += 1
                         stable_queue = False
                     logging.debug(self.queue_string())
@@ -296,8 +297,6 @@ class AgentQueue:
         self.rate_local_unfairness = aggregate_local_unfairness / interaction_count
         self.string = self.queue_string()
         return swaps
-
-
 
     def create_bw_framework(self):
         """
@@ -339,7 +338,6 @@ class AgentQueue:
 
         return bw_framework
 
-
     def interact_pair(self, defender: Agent, challenger: Agent):
         """
         Forces two agents to play the dialogue game.
@@ -354,8 +352,13 @@ class AgentQueue:
         logging.debug("#####################")
         logging.debug("Agent {} (defender) vs Agent {} (challenger)".format(defender.id, challenger.id))
         logging.debug("PROPERTIES:\n")
-        for i in range(len(self.culture.properties)):
-            logging.debug("PID[{}]: {}  |  {}".format(i, defender.properties[i], challenger.properties[i]))
+        for property in self.culture.properties.keys():
+            if type(property) == str:
+                logging.debug("Property[{}]: {}  vs.  {}".format(str(property), getattr(defender, property),
+                                                                 getattr(challenger, property)))
+            else:
+                logging.debug("Property[{}]: {}  vs.  {}".format(str(property), defender.properties[property],
+                                                                 challenger.properties[property]))
 
         # Black = defender. White = challenger.
         # bw_framework = self.create_bw_framework(defender, challenger)
@@ -367,9 +370,9 @@ class AgentQueue:
         challenger.reset_privacy_budget()
 
         # Game starts with challenger agent proposing argument 1 ("We should swap places").
-        used_arguments   = {defender: [], challenger: [1]}
+        used_arguments = {defender: [], challenger: [1]}
         last_argument = {defender: [], challenger: [1]}
-        privacy_budget  = {defender: defender.privacy_budget, challenger: challenger.privacy_budget}
+        privacy_budget = {defender: defender.privacy_budget, challenger: challenger.privacy_budget}
 
         logging.debug("Agent {} uses argument 0".format(challenger.id))
 
@@ -381,11 +384,11 @@ class AgentQueue:
         while not game_over:
             if turn % 2:
                 # Defender's turn.
-                player   = defender
+                player = defender
                 opponent = challenger
             else:
                 # Challenger's turn.
-                player   = challenger
+                player = challenger
                 opponent = defender
             logging.debug("TURN {}: Agent {}'s turn".format(turn, player.id))
             logging.debug(
@@ -400,8 +403,9 @@ class AgentQueue:
             unverified_argument_ids = self.bw_framework.arguments_that_attack(last_argument[opponent])
             unverified_argument_ids = unverified_argument_ids.difference(forbidden_arguments)
             if self.strategy != ArgStrategy.ALL_ARGS:
-                logging.debug("Possible attackers to argument {}: {}".format(last_argument[opponent], unverified_argument_ids))
-            verified_argument_ids   = []
+                logging.debug(
+                    "Possible attackers to argument {}: {}".format(last_argument[opponent], unverified_argument_ids))
+            verified_argument_ids = []
             for argument_id in unverified_argument_ids:
                 argument_obj = self.bw_framework.argument(argument_id)
                 # We will verify each argument using their respective verifier function.
@@ -413,7 +417,7 @@ class AgentQueue:
             # No local unfairness here. Agent had no counter-argument, regardless of privacy budget.
             if not verified_argument_ids:
                 game_over = True
-                winner    = opponent
+                winner = opponent
                 logging.debug("Agent {} cannot verify any argument!".format(player.id))
                 logging.debug("Agent {} wins!".format(winner.id))
                 logging.debug("Used arguments: {}".format(used_arguments[winner]))
@@ -427,9 +431,11 @@ class AgentQueue:
                 argument_obj = self.bw_framework.argument(argument_id)
                 if argument_obj.privacy_cost <= privacy_budget[player]:
                     player_is_defender = (player == defender)
-                    if player_is_defender and is_black_arg(argument_id): # Black agent. Only even arguments are considered.
+                    if player_is_defender and is_black_arg(
+                            argument_id):  # Black agent. Only even arguments are considered.
                         affordable_argument_ids.append(argument_id)
-                    elif (not player_is_defender) and is_white_arg(argument_id): # White agent. Only odd arguments are considered.
+                    elif (not player_is_defender) and is_white_arg(
+                            argument_id):  # White agent. Only odd arguments are considered.
                         affordable_argument_ids.append(argument_id)
                     affordable_str += "arg {}: {} | ".format(argument_id, argument_obj.privacy_cost)
             logging.debug(affordable_str)
@@ -451,6 +457,7 @@ class AgentQueue:
                 last_argument[player] = [rebuttal_id]
                 used_arguments[player].append(rebuttal_id)
                 rebuttal_obj = self.bw_framework.argument(rebuttal_id)
+                # print("Agent {}: {}".format(player.id, rebuttal_obj.descriptive_text))
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
             elif self.strategy == ArgStrategy.RANDOM_CHOICE_NO_PRIVACY:
@@ -517,8 +524,8 @@ class AgentQueue:
                 # argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
                 # relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
                 # if self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
-                    # ranking = argument_desc_rank
-                    # pass
+                # ranking = argument_desc_rank
+                # pass
                 # else:
                 #     ranking = relative_desc_rank
 
@@ -572,8 +579,8 @@ class AgentQueue:
                 # argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
                 # relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
                 # if self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
-                    # ranking = argument_desc_rank
-                    # pass
+                # ranking = argument_desc_rank
+                # pass
                 # else:
                 #     ranking = relative_desc_rank
 
@@ -624,20 +631,3 @@ class AgentQueue:
             turn += 1
 
         return winner == defender
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -6,7 +6,7 @@ import re
 class Argument:
     def __init__(self, arg_id, descriptive_text):
         self.__arg_id = arg_id
-        self.__descriptive_text = descriptive_text
+        self.descriptive_text = descriptive_text
         self.__framework = None
         self.evidence = []
         self.verifier_function = None
@@ -20,8 +20,6 @@ class Argument:
     def add_evidence(self, evidence):
         self.evidence.append(evidence)
 
-    def descriptive_text(self):
-        return self.__descriptive_text
 
     def attacks(self, attacked):
         if type(attacked) is Argument:
@@ -216,12 +214,12 @@ class ArgumentationFramework:
     def to_aspartix_text(self):
         text = ""
         for argument_id in self.all_arguments:
-            arg_text = self.argument(argument_id).descriptive_text()
+            arg_text = self.argument(argument_id).descriptive_text
             text += "arg({}).\n".format(arg_text)
         for attacker_id in self.all_attacks.keys():
             for attacked_id in self.all_attacks[attacker_id]:
-                attacker_text = self.argument(attacker_id).descriptive_text()
-                attacked_text = self.argument(attacked_id).descriptive_text()
+                attacker_text = self.argument(attacker_id).descriptive_text
+                attacked_text = self.argument(attacked_id).descriptive_text
                 text += "att({},{}).\n".format(attacker_text, attacked_text)
         return text
 
