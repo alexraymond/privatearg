@@ -8,6 +8,7 @@ import logging, sys
 import numpy as np
 import os
 import subprocess
+import json
 from multiprocessing.pool import ThreadPool
 
 from utils import *
@@ -66,6 +67,21 @@ class AgentQueue:
                 new_agent = Agent(i, max_privacy_budget=privacy_budget)
                 new_agent.set_culture(self.culture)
                 self.queue.append(new_agent)
+
+    def results_to_dict(self):
+        data = {}
+        data["size"] = self.size
+        data["strategy"] = str(self.strategy)
+        data["agents"] = {}
+        for agent in self.queue:
+            data["agents"][agent.id] = agent.results_to_dict()
+        return data
+
+    def agents_to_dict(self):
+        data = {}
+        for agent in self.queue:
+            data[agent.id] = agent.properties_to_dict()
+        return data
 
     def queue_string(self):
         text = ""
@@ -198,7 +214,6 @@ class AgentQueue:
         ground_truth.bw_framework = ground_truth.create_bw_framework()
         winners = {}
         pairs = []
-        results = []
         for i in range(0, len(ground_truth.queue)):
             for j in range(0, len(ground_truth.queue)):
                 if i == j:
@@ -293,8 +308,15 @@ class AgentQueue:
                     continue
                 defender = self.queue[i]
                 challenger = self.queue[j]
-                status_quo = self.interact_pair(self.queue[i], self.queue[j])
-                winners[(defender.id, challenger.id)] = defender.id if status_quo else challenger.id
+                # if defender.has_argued_with(challenger):
+                #     return True
+
+                status_quo, considered_unfair, privacy_cost = self.interact_pair(self.queue[i], self.queue[j])
+                winner = defender.id if status_quo else challenger.id
+                pair = (defender, challenger)
+                defender.add_result(pair, privacy_cost, winner, considered_unfair)
+                challenger.add_result(pair, privacy_cost, winner, considered_unfair)
+                winners[(defender.id, challenger.id)] = winner
                 interaction_count += 1
 
         aggregate_local_unfairness = 0
@@ -394,8 +416,9 @@ class AgentQueue:
         :return: True if status quo maintained or agents already interacted. False otherwise.
         """
 
-        if defender.has_argued_with(challenger):
-            return True
+        # FIXME: Should this be removed?
+        # if defender.has_argued_with(challenger):
+        #     return True
 
         logging.debug("#####################")
         logging.debug("Agent {} (defender) vs Agent {} (challenger)".format(defender.id, challenger.id))
@@ -429,6 +452,7 @@ class AgentQueue:
 
         game_over = False
         winner = None
+        considered_unfair = False
         while not game_over:
             if turn % 2:
                 # Defender's turn.
@@ -495,6 +519,7 @@ class AgentQueue:
                     game_over = True
                     winner = opponent
                     player.unfair_perception_score += 1
+                    considered_unfair = True
                     logging.debug("Agent {} cannot afford any argument!".format(player.id))
                     logging.debug("Agent {} wins!".format(winner.id))
                     logging.debug("Used arguments: {}".format(used_arguments[winner]))
@@ -521,6 +546,7 @@ class AgentQueue:
                     game_over = True
                     winner = opponent
                     player.unfair_perception_score += 1
+                    considered_unfair = True
                     logging.debug("Agent {} cannot afford any argument!".format(player.id))
                     logging.debug("Agent {} wins!".format(winner.id))
                     logging.debug("Used arguments: {}".format(used_arguments[winner]))
@@ -552,6 +578,7 @@ class AgentQueue:
                     game_over = True
                     winner = opponent
                     player.unfair_perception_score += 1
+                    considered_unfair = True
                     logging.debug("Agent {} cannot afford any argument!".format(player.id))
                     logging.debug("Agent {} wins!".format(winner.id))
                     logging.debug("Used arguments: {}".format(used_arguments[winner]))
@@ -607,6 +634,7 @@ class AgentQueue:
                     game_over = True
                     winner = opponent
                     player.unfair_perception_score += 1
+                    considered_unfair = True
                     logging.debug("Agent {} cannot afford any argument!".format(player.id))
                     logging.debug("Agent {} wins!".format(winner.id))
                     logging.debug("Used arguments: {}".format(used_arguments[winner]))
@@ -678,4 +706,6 @@ class AgentQueue:
 
             turn += 1
 
-        return winner == defender
+        total_privacy_cost = (defender.max_privacy_budget - privacy_budget[defender]) +\
+                             (challenger.max_privacy_budget - privacy_budget[challenger])
+        return (winner == defender), considered_unfair, total_privacy_cost

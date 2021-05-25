@@ -13,6 +13,7 @@ import os
 import math
 import random
 import time
+import datetime
 import sys
 import json
 import numpy as np
@@ -396,25 +397,59 @@ def run(config_file):
     with open(config_file) as file:
         data = json.load(file)
     headless = data["sim"]["graphics"]["headless"]
+    num_strategies = len(data["sim"]["dialogue_results"])
+    num_budgets = len(data["sim"]["dialogue_results"]["ArgStrategy.RANDOM_CHOICE_PRIVATE"])
     start = time.time()
+    results_path = "results/"
     if headless:
         boats_dict = data["sim"]["boats"]
-        sim = Sim(data["sim"])
-        sim.load_boats(boats_dict)
-        frame_counter = 0
-        while sim.is_running:
-            frame_counter += 1
-            if frame_counter % 1000 == 0:
-                print("Simulated {} frames.".format(frame_counter))
-            for boat in sim.boats:
-                boat.simulate_kinematics()
-        end = time.time()
-        print("Time elapsed: {:.2f} seconds".format(end - start))
-        return sim.results_filename
+        for strategy in data["sim"]["dialogue_results"].keys():
+            path = results_path+strategy
+            os.makedirs(path)
+            for budget in data["sim"]["dialogue_results"][strategy]:
+                sim = Sim(data["sim"], budget=int(budget), strategy=strategy)
+                sim.load_boats(boats_dict)
+                frame_counter = 0
+                while sim.is_running:
+                    frame_counter += 1
+                    if frame_counter % 1000 == 0:
+                        print("Simulated {} frames.".format(frame_counter))
+                    for boat in sim.boats:
+                        boat.simulate_kinematics()
+                end = time.time()
+                print("Time elapsed: {:.2f} seconds".format(end - start))
+                return sim.results_filename
 
     else:
         window = MyGame(config_file)
         window.setup()
         arcade.run()
+
+
+# def run(config_file):
+#     """ Main method """
+#     with open(config_file) as file:
+#         data = json.load(file)
+#     headless = data["sim"]["graphics"]["headless"]
+#     start = time.time()
+#     if headless:
+#         boats_dict = data["sim"]["boats"]
+#         sim = Sim(data["sim"])
+#         sim.load_boats(boats_dict)
+#         frame_counter = 0
+#         while sim.is_running:
+#             frame_counter += 1
+#             if frame_counter % 1000 == 0:
+#                 print("Simulated {} frames.".format(frame_counter))
+#             for boat in sim.boats:
+#                 boat.simulate_kinematics()
+#         end = time.time()
+#         print("Time elapsed: {:.2f} seconds".format(end - start))
+#         return sim.results_filename
+#
+#     else:
+#         window = MyGame(config_file)
+#         window.setup()
+#         arcade.run()
 
 

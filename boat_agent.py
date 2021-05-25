@@ -31,5 +31,9 @@ class BoatAgent(Agent):
         # if hasattr(self, property_) is False:
         #     print("RoadCell::assign_property_value: Property {} not found within road cell.".format(property_))
         #     return
+        if type(property_) is not str:
+            property_ = str(property_)
         self.__setattr__(property_, value)
+        self.properties[property_] = value
+
 

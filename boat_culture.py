@@ -5,6 +5,22 @@ from boat_agent import BoatAgent
 import random
 
 
+class VehicleAge(IntEnum):
+    BrandNew = auto()
+    SlightlyUsed = auto()
+    WornDown = auto()
+    Old = auto()
+    Vintage = auto()
+
+
+class VehicleCost(IntEnum):
+    Cheap = auto()
+    Reasonable = auto()
+    Expensive = auto()
+    VeryExpensive = auto()
+    WorthMillions = auto()
+
+
 class BoatCategory(IntEnum):
     Civilian = auto()
     Corporate = auto()
@@ -19,6 +35,12 @@ class TaskedStatus(IntEnum):
     Tasked = auto()
 
 
+class PayloadType(IntEnum):
+    Empty = auto()
+    Food = auto()
+    MedicalSupplies = auto()
+
+
 class TaskNature(IntEnum):
     Leisure = auto()
     Sport = auto()
@@ -29,29 +51,11 @@ class TaskNature(IntEnum):
     Combat = auto()
 
 
-class EmergencyNature(IntEnum):
-    NoEmergency = auto()
-    Mechanical = auto()
-    SickPassenger = auto()
-    Fire = auto()
-
-
-class PayloadType(IntEnum):
-    Empty = auto()
-    Food = auto()
-    MedicalSupplies = auto()
-
-
-class SensitivePayload(IntEnum):
-    NoSensitivePayload = auto()
-    Weapons = auto()
-    WantedPrisoner = auto()
-
-
-class DiplomaticCredentials(IntEnum):
-    NoCredentials = auto()
-    Diplomat = auto()
-    UnitedNations = auto()
+class VIPIdentity(IntEnum):
+    OrdinaryPerson = auto()
+    BusinessPerson = auto()
+    Celebrity = auto()
+    Politician = auto()
 
 
 class MilitaryRank(IntEnum):
@@ -66,11 +70,28 @@ class MilitaryRank(IntEnum):
     Admiral = auto()
 
 
-class VIPIdentity(IntEnum):
-    OrdinaryPerson = auto()
-    BusinessPerson = auto()
-    Celebrity = auto()
-    Politician = auto()
+class DiplomaticCredentials(IntEnum):
+    NoCredentials = auto()
+    Diplomat = auto()
+    UnitedNations = auto()
+
+
+class SensitivePayload(IntEnum):
+    NoSensitivePayload = auto()
+    Weapons = auto()
+    WantedPrisoner = auto()
+
+
+class UndercoverOps(IntEnum):
+    NoSpy = auto()
+    Spy = auto()
+
+
+class EmergencyNature(IntEnum):
+    NoEmergency = auto()
+    Mechanical = auto()
+    SickPassenger = auto()
+    Fire = auto()
 
 
 class SuperVIP(IntEnum):
@@ -79,28 +100,9 @@ class SuperVIP(IntEnum):
     HeadOfState = auto()
 
 
-class UndercoverOps(IntEnum):
-    NoSpy = auto()
-    Spy = auto()
-
-
-class VehicleCost(IntEnum):
-    Cheap = auto()
-    Reasonable = auto()
-    Expensive = auto()
-    VeryExpensive = auto()
-    WorthMillions = auto()
-
-
-class VehicleAge(IntEnum):
-    BrandNew = auto()
-    SlightlyUsed = auto()
-    WornDown = auto()
-    Old = auto()
-    Vintage = auto()
-
 def always_true(*args, **kwargs):
     return True
+
 
 class BoatCulture(Culture):
     def __init__(self):
@@ -185,7 +187,7 @@ class BoatCulture(Culture):
         task_nature = PrivateArgument(arg_id=_id,
                                       hypothesis_text="I think the nature of my task is more important than yours.",
                                       verified_fact_text="My task is equal or more important than yours.",
-                                      privacy_cost=5)
+                                      privacy_cost=7)
         self.ids["task_nature"] = _id
 
         def task_nature_hv(my: BoatAgent, their: BoatAgent):
@@ -204,7 +206,7 @@ class BoatCulture(Culture):
         has_emergency = PrivateArgument(arg_id=_id,
                                         hypothesis_text="I have an emergency on board.",
                                         verified_fact_text="I also have an emergency that is equal or more critical than yours.",
-                                        privacy_cost=5)
+                                        privacy_cost=10)
         self.ids["has_emergency"] = _id
 
         def has_emergency_hv(my: BoatAgent, their: BoatAgent):
@@ -261,7 +263,7 @@ class BoatCulture(Culture):
         diplomatic_credentials = PrivateArgument(arg_id=_id,
                                                  hypothesis_text="I have diplomatic credentials.",
                                                  verified_fact_text="I have equivalent or superior diplomatic credentials.",
-                                                 privacy_cost=15)
+                                                 privacy_cost=12)
         self.ids["diplomatic_credentials"] = _id
 
         def diplomatic_credentials_hv(my: BoatAgent, their: BoatAgent):
@@ -280,7 +282,7 @@ class BoatCulture(Culture):
         military_rank = PrivateArgument(arg_id=_id,
                                         hypothesis_text="I believe my Military Rank is higher than yours.",
                                         verified_fact_text="I have equivalent or superior Military Rank.",
-                                        privacy_cost=7)
+                                        privacy_cost=8)
         self.ids["military_rank"] = _id
 
         def military_rank_hv(my: BoatAgent, their: BoatAgent):
@@ -299,7 +301,7 @@ class BoatCulture(Culture):
         vip_identity = PrivateArgument(arg_id=_id,
                                        hypothesis_text="I have an important passenger.",
                                        verified_fact_text="I also have a passenger equally or more important.",
-                                       privacy_cost=7)
+                                       privacy_cost=13)
         self.ids["vip_identity"] = _id
 
         def vip_identity_hv(my: BoatAgent, their: BoatAgent):
@@ -318,7 +320,7 @@ class BoatCulture(Culture):
         super_vip = PrivateArgument(arg_id=_id,
                                     hypothesis_text="I have a super important passenger.",
                                     verified_fact_text="I also have a passenger equally or more important.",
-                                    privacy_cost=20)
+                                    privacy_cost=16)
         self.ids["super_vip"] = _id
 
         def super_vip_hv(my: BoatAgent, their: BoatAgent):
@@ -337,7 +339,7 @@ class BoatCulture(Culture):
         undercover_ops = PrivateArgument(arg_id=_id,
                                          hypothesis_text="I am a spy.",
                                          verified_fact_text="I am also a spy.",
-                                         privacy_cost=30)
+                                         privacy_cost=20)
         self.ids["undercover_ops"] = _id
 
         def undercover_ops_hv(my: BoatAgent, their: BoatAgent):
@@ -408,7 +410,7 @@ class BoatCulture(Culture):
                               BoatCategory.Police: 0.1,
                               BoatCategory.CoastGuard: 0.1,
                               BoatCategory.Military: 0.4}
-        agent.BoatCategory = sample(boat_category_prob)
+        agent.assign_property_value("BoatCategory", sample(boat_category_prob))
 
         # Probabilities for TaskedStatus. Civilians are never "tasked".
         if agent.BoatCategory == BoatCategory.Civilian:
@@ -418,8 +420,7 @@ class BoatCulture(Culture):
             tasked_status_prob = {TaskedStatus.AtEase: 0.2,
                                   TaskedStatus.Returning: 0.3,
                                   TaskedStatus.Tasked: 0.5}
-
-        agent.TaskedStatus = sample(tasked_status_prob)
+        agent.assign_property_value("TaskedStatus", sample(tasked_status_prob))
 
         # Probabilities for TaskNature. Different rules for Civilians, Corporate and others.
         if agent.BoatCategory == BoatCategory.Civilian:
@@ -438,64 +439,64 @@ class BoatCulture(Culture):
                                 TaskNature.Patrol: 0.2,
                                 TaskNature.Pursuit: 0.1,
                                 TaskNature.Combat: 0.3}
-        agent.TaskNature = sample(task_nature_prob)
+        agent.assign_property_value("TaskNature", sample(task_nature_prob))
 
         # Probabilities for EmergencyNature.
         emergency_nature_prob = {EmergencyNature.NoEmergency: 0.85,
                                  EmergencyNature.Mechanical: 0.05,
                                  EmergencyNature.SickPassenger: 0.05,
                                  EmergencyNature.Fire: 0.05}
-        agent.EmergencyNature = sample(emergency_nature_prob)
+        agent.assign_property_value("EmergencyNature", sample(emergency_nature_prob))
 
         # Probabilities for PayloadType.
         payload_type_prob = {PayloadType.Empty: 0.5,
                              PayloadType.Food: 0.25,
                              PayloadType.MedicalSupplies: 0.25}
-        agent.PayloadType = sample(payload_type_prob)
+        agent.assign_property_value("PayloadType", sample(payload_type_prob))
 
         # Probabilities for SensitivePayload. Different rules for Civ/Corp and armed forces.
         if agent.BoatCategory < BoatCategory.Police:
-            agent.SensitivePayload = SensitivePayload.NoSensitivePayload
+            agent.assign_property_value("SensitivePayload", SensitivePayload.NoSensitivePayload)
         else:  # From police onwards.
             sensitive_payload_prob = {SensitivePayload.NoSensitivePayload: 0.6,
                                       SensitivePayload.Weapons: 0.3,
                                       SensitivePayload.WantedPrisoner: 0.1}
-            agent.SensitivePayload = sample(sensitive_payload_prob)
+            agent.assign_property_value("SensitivePayload", sample(sensitive_payload_prob))
 
         # Probabilities for DiplomaticCredentials.
         if agent.BoatCategory < BoatCategory.Police:
             diplomatic_prob = {DiplomaticCredentials.NoCredentials: 0.6,
                                DiplomaticCredentials.Diplomat: 0.2,
                                DiplomaticCredentials.UnitedNations: 0.2}
-            agent.DiplomaticCredentials = sample(diplomatic_prob)
+            agent.assign_property_value("DiplomaticCredentials", sample(diplomatic_prob))
         else:
-            agent.DiplomaticCredentials = DiplomaticCredentials.NoCredentials
+            agent.assign_property_value("DiplomaticCredentials", DiplomaticCredentials.NoCredentials)
 
         # Probabilities for MilitaryRank.
         if agent.BoatCategory != BoatCategory.Military:
-            agent.MilitaryRank = MilitaryRank.NoRank
+            agent.assign_property_value("MilitaryRank", MilitaryRank.NoRank)
         else:
-            agent.MilitaryRank = sample(list(MilitaryRank))
+            agent.assign_property_value("MilitaryRank", sample(list(MilitaryRank)))
 
         # Probabilities for VIPIdentity.
-        agent.VIPIdentity = sample(list(VIPIdentity))
+        agent.assign_property_value("VIPIdentity", sample(list(VIPIdentity)))
 
         # Probabilities for SuperVIP.
         super_vip_prob = {SuperVIP.NoSuperVIP: 0.8,
                           SuperVIP.PrimeMinister: 0.15,
                           SuperVIP.HeadOfState: 0.05}
-        agent.SuperVIP = sample(super_vip_prob)
+        agent.assign_property_value("SuperVIP", sample(super_vip_prob))
 
         # Probabilities for UndercoverOps.
         if agent.BoatCategory <= BoatCategory.Corporate:
             undercover_prob = {UndercoverOps.NoSpy: 0.7,
                                UndercoverOps.Spy: 0.3}
-            agent.UndercoverOps = sample(undercover_prob)
+            agent.assign_property_value("UndercoverOps", sample(undercover_prob))
         else:
-            agent.UndercoverOps = UndercoverOps.NoSpy
+            agent.assign_property_value("UndercoverOps", UndercoverOps.NoSpy)
 
-        agent.VehicleCost = sample(list(VehicleCost))
-        agent.VehicleAge = sample(list(VehicleAge))
+        agent.assign_property_value("VehicleCost", sample(list(VehicleCost)))
+        agent.assign_property_value("VehicleAge", sample(list(VehicleAge)))
 
     def define_attacks(self):
         """
@@ -615,12 +616,12 @@ class BoatCulture(Culture):
         for argument in self.AF.arguments():
             # Even indices for defender, odd for challenger.
             # Adding hypothetical arguments.
-            black_hypothesis = PrivateArgument(arg_id = argument.id() * 4,
-                                               descriptive_text = argument.hypothesis_text,
-                                               privacy_cost = argument.privacy_cost)
-            white_hypothesis = PrivateArgument(arg_id = argument.id() * 4 + 1,
-                                               descriptive_text = argument.hypothesis_text,
-                                               privacy_cost = argument.privacy_cost)
+            black_hypothesis = PrivateArgument(arg_id=argument.id() * 4,
+                                               descriptive_text=argument.hypothesis_text,
+                                               privacy_cost=argument.privacy_cost)
+            white_hypothesis = PrivateArgument(arg_id=argument.id() * 4 + 1,
+                                               descriptive_text=argument.hypothesis_text,
+                                               privacy_cost=argument.privacy_cost)
             h_verifier = argument.hypothesis_verifier if argument.hypothesis_verifier else always_true
             black_hypothesis.set_verifier(h_verifier)
             white_hypothesis.set_verifier(h_verifier)

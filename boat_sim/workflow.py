@@ -1,3 +1,4 @@
+from config.scenario_generator import generate_random_scenario
 from config.scenario_generator import generate_scenario
 from game import run
 from plot_results import ResultsManager
@@ -24,7 +25,8 @@ def parse_workflow(args):
     if args.g or args.gsr:
         # Generates scenario file.
         print("Generating scenario file...")
-        scenario_file = generate_scenario(args.n)
+        # scenario_file = generate_random_scenario(args.n)
+        scenario_file = generate_scenario()
         print("Scenario file {} generated.".format(scenario_file))
     else:
         scenario_file = args.scenario

@@ -10,7 +10,7 @@ class Sim:
     Main class for computing simulations and game logic in a headless manner.
     """
 
-    def __init__(self, sim_config):
+    def __init__(self, sim_config, budget=None, strategy=None):
         # List of all BoatModels present.
         self.boats = []
         self.finished_boats = set()
@@ -18,6 +18,12 @@ class Sim:
         self.avoidance_max_distance = sim_config["avoidance_max_distance"]
         self.write_trajectories = sim_config["write_trajectories"]
         self.only_frontal_avoidance = True
+        self.max_budget = int(budget)
+        self.strategy = strategy
+        self.agents_dialogue_results = sim_config["dialogue_data"][strategy][budget]["agents"]
+        self.winners = {}
+        self.costs = {}
+        self.process_dialogues()
         self.trajectories = {}
         self.sim_config = sim_config
         self.is_running = True
@@ -25,12 +31,29 @@ class Sim:
         self.output_type = "json"
         self.results_filename = ""
 
+    def process_dialogues(self):
+        for result in self.agents_dialogue_results.keys():
+            agents_str = result
+            agents_str = agents_str.replace("(", "")
+            agents_str = agents_str.replace(")", "")
+            agents_str = agents_str.split(", ")
+            defender = int(agents_str[0])
+            challenger = int(agents_str[1])
+            winner = self.agents_dialogue_results[result]["winner"]
+            total_cost = self.agents_dialogue_results[result]["total_privacy_cost"]
+            a, b = (defender, challenger) if defender < challenger else (challenger, defender)
+            if (a,b) not in self.winners:
+                self.winners[(a, b)] = winner
+                self.costs[(a, b)] = total_cost
+
+
     def concedes(self, id_a, id_b):
         """
         :return: True if vehicle with id_a concedes to id_b.
         """
         # print("{} > {}? {}".format(id_a, id_b, id_a < id_b))
-        return id_a < id_b
+        a, b = (id_a, id_b) if id_a < id_b else (id_b, id_a)
+        return self.winners[(a, b)] == b
 
     def notify_finished_vehicle(self, boat):
         self.finished_boats.add(boat)
@@ -156,15 +179,14 @@ class Sim:
 
     def load_boats(self, boats_dict):
         for boat_entry in boats_dict:
-            boat = self.add_boat(self, boat_entry["start_x"], boat_entry["start_y"], boat_entry["size"])
+            boat = self.add_boat(self, boat_entry["id"], boat_entry["start_x"], boat_entry["start_y"], boat_entry["size"])
             boat.set_goal(boat_entry["goal_x"], boat_entry["goal_y"])
             boat.name = boat_entry["name"]
             boat.heading = math.radians(boat_entry["initial_heading"])
             boat.goal_colour = boat_entry["colour"]
             boat.write_trajectories = self.write_trajectories
 
-    def add_boat(self, sim, x, y, boat_type):
-        boat_id = len(self.boats)
+    def add_boat(self, boat_id, sim, x, y, boat_type):
         boat = BoatModel(sim, boat_id, position=(x,y), boat_type=boat_type)
         if self.write_trajectories:
             self.trajectories[boat_id] = []
