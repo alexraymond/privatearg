@@ -147,7 +147,8 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
         with open('experiment_id', "r") as id_file:
             experiment_id = int(id_file.read())
             id_file.close()
-        base_queue = AgentQueue(ArgStrategy.ALL_ARGS, culture=BoatCulture(), size=queue_size,
+        base_queue = AgentQueue(ArgStrategy.ALL_ARGS, culture=BoatCulture(),
+                                size=queue_size,
                                 privacy_budget=max_privacy_budget)
         print("\nExperiment {}".format(experiment_id))
         t_before_experiment = time.time()
@@ -588,4 +589,4 @@ def benchmark(num_iterations, queue_size, privacy_budget, test_type='ordering'):
 
 
 # benchmark(num_iterations = 30, queue_size = 20, privacy_budget = 10, test_type='matrix')
-benchmark_same_strategy(num_experiments=1, queue_size=16, max_privacy_budget=80, test_type='matrix')
+benchmark_same_strategy(num_experiments=1, queue_size=16, max_privacy_budget=60, test_type='matrix')

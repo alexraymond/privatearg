@@ -145,215 +145,27 @@ class BoatCulture(Culture):
 
         ################################################################################
 
+        # ID 1
         _id += 1
-        higher_category = PrivateArgument(arg_id=_id,
-                                          hypothesis_text="I think my category is superior to yours.",
-                                          verified_fact_text="My category is provably equal or superior to yours.",
-                                          privacy_cost=0)
-        self.ids["higher_category"] = _id
+        vehicle_age = PrivateArgument(arg_id=_id,
+                                      hypothesis_text="I believe my vehicle is older than yours.",
+                                      verified_fact_text="My vehicle is at least as old as yours, or more.",
+                                      privacy_cost=4)
+        self.ids["vehicle_age"] = _id
 
-        def higher_category_hv(my: BoatAgent, their: BoatAgent):
-            return my.BoatCategory > BoatCategory.Civilian
+        def vehicle_age_hv(my: BoatAgent, their: BoatAgent):
+            return my.VehicleAge > VehicleAge.BrandNew
 
-        def higher_category_fv(my: BoatAgent, their: BoatAgent):
-            return my.BoatCategory >= their.BoatCategory
+        def vehicle_age_fv(my: BoatAgent, their: BoatAgent):
+            return my.VehicleAge >= their.VehicleAge
 
-        higher_category.hypothesis_verifier = higher_category_hv
-        higher_category.fact_verifier = higher_category_fv
-        args.append(higher_category)
+        vehicle_age.hypothesis_verifier = vehicle_age_hv
+        vehicle_age.fact_verifier = vehicle_age_fv
+        args.append(vehicle_age)
 
         ################################################################################
 
-        _id += 1
-        tasked_status = PrivateArgument(arg_id=_id,
-                                        hypothesis_text="I think my tasked status is more important than yours.",
-                                        verified_fact_text="My tasked status is provably equal or superior to yours.",
-                                        privacy_cost=3)
-        self.ids["tasked_status"] = _id
-
-        def tasked_status_hv(my: BoatAgent, their: BoatAgent):
-            return my.TaskedStatus > TaskedStatus.AtEase
-
-        def tasked_status_fv(my: BoatAgent, their: BoatAgent):
-            return my.TaskedStatus >= their.TaskedStatus
-
-        tasked_status.hypothesis_verifier = tasked_status_hv
-        tasked_status.fact_verifier = tasked_status_fv
-        args.append(tasked_status)
-
-        ################################################################################
-
-        _id += 1
-        task_nature = PrivateArgument(arg_id=_id,
-                                      hypothesis_text="I think the nature of my task is more important than yours.",
-                                      verified_fact_text="My task is equal or more important than yours.",
-                                      privacy_cost=7)
-        self.ids["task_nature"] = _id
-
-        def task_nature_hv(my: BoatAgent, their: BoatAgent):
-            return my.TaskNature > TaskNature.Leisure
-
-        def task_nature_fv(my: BoatAgent, their: BoatAgent):
-            return my.TaskNature >= their.TaskNature
-
-        task_nature.hypothesis_verifier = task_nature_hv
-        task_nature.fact_verifier = task_nature_fv
-        args.append(task_nature)
-
-        ################################################################################
-
-        _id += 1
-        has_emergency = PrivateArgument(arg_id=_id,
-                                        hypothesis_text="I have an emergency on board.",
-                                        verified_fact_text="I also have an emergency that is equal or more critical than yours.",
-                                        privacy_cost=10)
-        self.ids["has_emergency"] = _id
-
-        def has_emergency_hv(my: BoatAgent, their: BoatAgent):
-            return my.EmergencyNature > EmergencyNature.NoEmergency
-
-        def has_emergency_fv(my: BoatAgent, their: BoatAgent):
-            return my.EmergencyNature >= their.EmergencyNature
-
-        has_emergency.hypothesis_verifier = has_emergency_hv
-        has_emergency.fact_verifier = has_emergency_fv
-        args.append(has_emergency)
-
-        ################################################################################
-
-        _id += 1
-        payload_type = PrivateArgument(arg_id=_id,
-                                       hypothesis_text="I have cargo with me.",
-                                       verified_fact_text="I also have cargo that is equal or more important than yours.",
-                                       privacy_cost=5)
-        self.ids["payload_type"] = _id
-
-        def payload_type_hv(my: BoatAgent, their: BoatAgent):
-            return my.PayloadType > PayloadType.Empty
-
-        def payload_type_fv(my: BoatAgent, their: BoatAgent):
-            return my.PayloadType >= their.PayloadType
-
-        payload_type.hypothesis_verifier = payload_type_hv
-        payload_type.fact_verifier = payload_type_fv
-        args.append(payload_type)
-
-        ################################################################################
-
-        _id += 1
-        sensitive_payload = PrivateArgument(arg_id=_id,
-                                            hypothesis_text="I have sensitive cargo with me.",
-                                            verified_fact_text="I also have cargo that is equal or more sensitive than yours.",
-                                            privacy_cost=15)
-        self.ids["sensitive_payload"] = _id
-
-        def sensitive_payload_hv(my: BoatAgent, their: BoatAgent):
-            return my.SensitivePayload > SensitivePayload.NoSensitivePayload
-
-        def sensitive_payload_fv(my: BoatAgent, their: BoatAgent):
-            return my.SensitivePayload >= their.SensitivePayload
-
-        sensitive_payload.hypothesis_verifier = sensitive_payload_hv
-        sensitive_payload.fact_verifier = sensitive_payload_fv
-        args.append(sensitive_payload)
-
-        ################################################################################
-
-        _id += 1
-        diplomatic_credentials = PrivateArgument(arg_id=_id,
-                                                 hypothesis_text="I have diplomatic credentials.",
-                                                 verified_fact_text="I have equivalent or superior diplomatic credentials.",
-                                                 privacy_cost=12)
-        self.ids["diplomatic_credentials"] = _id
-
-        def diplomatic_credentials_hv(my: BoatAgent, their: BoatAgent):
-            return my.DiplomaticCredentials > DiplomaticCredentials.NoCredentials
-
-        def diplomatic_credentials_fv(my: BoatAgent, their: BoatAgent):
-            return my.DiplomaticCredentials >= their.DiplomaticCredentials
-
-        diplomatic_credentials.hypothesis_verifier = diplomatic_credentials_hv
-        diplomatic_credentials.fact_verifier = diplomatic_credentials_fv
-        args.append(diplomatic_credentials)
-
-        ################################################################################
-
-        _id += 1
-        military_rank = PrivateArgument(arg_id=_id,
-                                        hypothesis_text="I believe my Military Rank is higher than yours.",
-                                        verified_fact_text="I have equivalent or superior Military Rank.",
-                                        privacy_cost=8)
-        self.ids["military_rank"] = _id
-
-        def military_rank_hv(my: BoatAgent, their: BoatAgent):
-            return my.MilitaryRank > MilitaryRank.NoRank
-
-        def military_rank_fv(my: BoatAgent, their: BoatAgent):
-            return my.MilitaryRank >= their.MilitaryRank
-
-        military_rank.hypothesis_verifier = military_rank_hv
-        military_rank.fact_verifier = military_rank_fv
-        args.append(military_rank)
-
-        ################################################################################
-
-        _id += 1
-        vip_identity = PrivateArgument(arg_id=_id,
-                                       hypothesis_text="I have an important passenger.",
-                                       verified_fact_text="I also have a passenger equally or more important.",
-                                       privacy_cost=13)
-        self.ids["vip_identity"] = _id
-
-        def vip_identity_hv(my: BoatAgent, their: BoatAgent):
-            return my.VIPIdentity > VIPIdentity.OrdinaryPerson
-
-        def vip_identity_fv(my: BoatAgent, their: BoatAgent):
-            return my.VIPIdentity >= their.VIPIdentity
-
-        vip_identity.hypothesis_verifier = vip_identity_hv
-        vip_identity.fact_verifier = vip_identity_fv
-        args.append(vip_identity)
-
-        ################################################################################
-
-        _id += 1
-        super_vip = PrivateArgument(arg_id=_id,
-                                    hypothesis_text="I have a super important passenger.",
-                                    verified_fact_text="I also have a passenger equally or more important.",
-                                    privacy_cost=16)
-        self.ids["super_vip"] = _id
-
-        def super_vip_hv(my: BoatAgent, their: BoatAgent):
-            return my.SuperVIP > SuperVIP.NoSuperVIP
-
-        def super_vip_fv(my: BoatAgent, their: BoatAgent):
-            return my.SuperVIP >= their.SuperVIP
-
-        super_vip.hypothesis_verifier = super_vip_hv
-        super_vip.fact_verifier = super_vip_fv
-        args.append(super_vip)
-
-        ################################################################################
-
-        _id += 1
-        undercover_ops = PrivateArgument(arg_id=_id,
-                                         hypothesis_text="I am a spy.",
-                                         verified_fact_text="I am also a spy.",
-                                         privacy_cost=20)
-        self.ids["undercover_ops"] = _id
-
-        def undercover_ops_hv(my: BoatAgent, their: BoatAgent):
-            return my.UndercoverOps > UndercoverOps.NoSpy
-
-        def undercover_ops_fv(my: BoatAgent, their: BoatAgent):
-            return my.UndercoverOps >= their.UndercoverOps
-
-        undercover_ops.hypothesis_verifier = undercover_ops_hv
-        undercover_ops.fact_verifier = undercover_ops_fv
-        args.append(undercover_ops)
-
-        ################################################################################
-
+        # ID 2
         _id += 1
         vehicle_cost = PrivateArgument(arg_id=_id,
                                        hypothesis_text="I believe I paid more for my vehicle than you.",
@@ -373,22 +185,225 @@ class BoatCulture(Culture):
 
         ################################################################################
 
+        # ID 3
         _id += 1
-        vehicle_age = PrivateArgument(arg_id=_id,
-                                      hypothesis_text="I believe my vehicle is older than yours.",
-                                      verified_fact_text="My vehicle is at least as old as yours, or more.",
-                                      privacy_cost=4)
-        self.ids["vehicle_age"] = _id
+        higher_category = PrivateArgument(arg_id=_id,
+                                          hypothesis_text="I think my category is superior to yours.",
+                                          verified_fact_text="My category is provably equal or superior to yours.",
+                                          privacy_cost=0)
+        self.ids["higher_category"] = _id
 
-        def vehicle_age_hv(my: BoatAgent, their: BoatAgent):
-            return my.VehicleAge > VehicleAge.BrandNew
+        def higher_category_hv(my: BoatAgent, their: BoatAgent):
+            return my.BoatCategory > BoatCategory.Civilian
 
-        def vehicle_age_fv(my: BoatAgent, their: BoatAgent):
-            return my.VehicleAge >= their.VehicleAge
+        def higher_category_fv(my: BoatAgent, their: BoatAgent):
+            return my.BoatCategory >= their.BoatCategory
 
-        vehicle_age.hypothesis_verifier = vehicle_age_hv
-        vehicle_age.fact_verifier = vehicle_age_fv
-        args.append(vehicle_age)
+        higher_category.hypothesis_verifier = higher_category_hv
+        higher_category.fact_verifier = higher_category_fv
+        args.append(higher_category)
+
+        ################################################################################
+
+        # ID 4
+        _id += 1
+        tasked_status = PrivateArgument(arg_id=_id,
+                                        hypothesis_text="I think my tasked status is more important than yours.",
+                                        verified_fact_text="My tasked status is provably equal or superior to yours.",
+                                        privacy_cost=3)
+        self.ids["tasked_status"] = _id
+
+        def tasked_status_hv(my: BoatAgent, their: BoatAgent):
+            return my.TaskedStatus > TaskedStatus.AtEase
+
+        def tasked_status_fv(my: BoatAgent, their: BoatAgent):
+            return my.TaskedStatus >= their.TaskedStatus
+
+        tasked_status.hypothesis_verifier = tasked_status_hv
+        tasked_status.fact_verifier = tasked_status_fv
+        args.append(tasked_status)
+
+        ################################################################################
+
+        # ID 5
+        _id += 1
+        payload_type = PrivateArgument(arg_id=_id,
+                                       hypothesis_text="I have cargo with me.",
+                                       verified_fact_text="I also have cargo that is equal or more important than yours.",
+                                       privacy_cost=5)
+        self.ids["payload_type"] = _id
+
+        def payload_type_hv(my: BoatAgent, their: BoatAgent):
+            return my.PayloadType > PayloadType.Empty
+
+        def payload_type_fv(my: BoatAgent, their: BoatAgent):
+            return my.PayloadType >= their.PayloadType
+
+        payload_type.hypothesis_verifier = payload_type_hv
+        payload_type.fact_verifier = payload_type_fv
+        args.append(payload_type)
+
+        ################################################################################
+
+        # ID 6
+        _id += 1
+        task_nature = PrivateArgument(arg_id=_id,
+                                      hypothesis_text="I think the nature of my task is more important than yours.",
+                                      verified_fact_text="My task is equal or more important than yours.",
+                                      privacy_cost=7)
+        self.ids["task_nature"] = _id
+
+        def task_nature_hv(my: BoatAgent, their: BoatAgent):
+            return my.TaskNature > TaskNature.Leisure
+
+        def task_nature_fv(my: BoatAgent, their: BoatAgent):
+            return my.TaskNature >= their.TaskNature
+
+        task_nature.hypothesis_verifier = task_nature_hv
+        task_nature.fact_verifier = task_nature_fv
+        args.append(task_nature)
+
+        ################################################################################
+
+        # ID 7
+        _id += 1
+        vip_identity = PrivateArgument(arg_id=_id,
+                                       hypothesis_text="I have an important passenger.",
+                                       verified_fact_text="I also have a passenger equally or more important.",
+                                       privacy_cost=13)
+        self.ids["vip_identity"] = _id
+
+        def vip_identity_hv(my: BoatAgent, their: BoatAgent):
+            return my.VIPIdentity > VIPIdentity.OrdinaryPerson
+
+        def vip_identity_fv(my: BoatAgent, their: BoatAgent):
+            return my.VIPIdentity >= their.VIPIdentity
+
+        vip_identity.hypothesis_verifier = vip_identity_hv
+        vip_identity.fact_verifier = vip_identity_fv
+        args.append(vip_identity)
+
+        ################################################################################
+
+        # ID 8
+        _id += 1
+        military_rank = PrivateArgument(arg_id=_id,
+                                        hypothesis_text="I believe my Military Rank is higher than yours.",
+                                        verified_fact_text="I have equivalent or superior Military Rank.",
+                                        privacy_cost=8)
+        self.ids["military_rank"] = _id
+
+        def military_rank_hv(my: BoatAgent, their: BoatAgent):
+            return my.MilitaryRank > MilitaryRank.NoRank
+
+        def military_rank_fv(my: BoatAgent, their: BoatAgent):
+            return my.MilitaryRank >= their.MilitaryRank
+
+        military_rank.hypothesis_verifier = military_rank_hv
+        military_rank.fact_verifier = military_rank_fv
+        args.append(military_rank)
+
+        ################################################################################
+
+        # ID 9
+        _id += 1
+        diplomatic_credentials = PrivateArgument(arg_id=_id,
+                                                 hypothesis_text="I have diplomatic credentials.",
+                                                 verified_fact_text="I have equivalent or superior diplomatic credentials.",
+                                                 privacy_cost=12)
+        self.ids["diplomatic_credentials"] = _id
+
+        def diplomatic_credentials_hv(my: BoatAgent, their: BoatAgent):
+            return my.DiplomaticCredentials > DiplomaticCredentials.NoCredentials
+
+        def diplomatic_credentials_fv(my: BoatAgent, their: BoatAgent):
+            return my.DiplomaticCredentials >= their.DiplomaticCredentials
+
+        diplomatic_credentials.hypothesis_verifier = diplomatic_credentials_hv
+        diplomatic_credentials.fact_verifier = diplomatic_credentials_fv
+        args.append(diplomatic_credentials)
+
+        ################################################################################
+
+        # ID 10
+        _id += 1
+        sensitive_payload = PrivateArgument(arg_id=_id,
+                                            hypothesis_text="I have sensitive cargo with me.",
+                                            verified_fact_text="I also have cargo that is equal or more sensitive than yours.",
+                                            privacy_cost=15)
+        self.ids["sensitive_payload"] = _id
+
+        def sensitive_payload_hv(my: BoatAgent, their: BoatAgent):
+            return my.SensitivePayload > SensitivePayload.NoSensitivePayload
+
+        def sensitive_payload_fv(my: BoatAgent, their: BoatAgent):
+            return my.SensitivePayload >= their.SensitivePayload
+
+        sensitive_payload.hypothesis_verifier = sensitive_payload_hv
+        sensitive_payload.fact_verifier = sensitive_payload_fv
+        args.append(sensitive_payload)
+
+        ################################################################################
+
+        # ID 11
+        _id += 1
+        undercover_ops = PrivateArgument(arg_id=_id,
+                                         hypothesis_text="I am a spy.",
+                                         verified_fact_text="I am also a spy.",
+                                         privacy_cost=20)
+        self.ids["undercover_ops"] = _id
+
+        def undercover_ops_hv(my: BoatAgent, their: BoatAgent):
+            return my.UndercoverOps > UndercoverOps.NoSpy
+
+        def undercover_ops_fv(my: BoatAgent, their: BoatAgent):
+            return my.UndercoverOps >= their.UndercoverOps
+
+        undercover_ops.hypothesis_verifier = undercover_ops_hv
+        undercover_ops.fact_verifier = undercover_ops_fv
+        args.append(undercover_ops)
+
+        ################################################################################
+
+        # ID 12
+        _id += 1
+        has_emergency = PrivateArgument(arg_id=_id,
+                                        hypothesis_text="I have an emergency on board.",
+                                        verified_fact_text="I also have an emergency that is equal or more critical than yours.",
+                                        privacy_cost=10)
+        self.ids["has_emergency"] = _id
+
+        def has_emergency_hv(my: BoatAgent, their: BoatAgent):
+            return my.EmergencyNature > EmergencyNature.NoEmergency
+
+        def has_emergency_fv(my: BoatAgent, their: BoatAgent):
+            return my.EmergencyNature >= their.EmergencyNature
+
+        has_emergency.hypothesis_verifier = has_emergency_hv
+        has_emergency.fact_verifier = has_emergency_fv
+        args.append(has_emergency)
+
+        ################################################################################
+
+        # ID 13
+        _id += 1
+        super_vip = PrivateArgument(arg_id=_id,
+                                    hypothesis_text="I have a super important passenger.",
+                                    verified_fact_text="I also have a passenger equally or more important.",
+                                    privacy_cost=16)
+        self.ids["super_vip"] = _id
+
+        def super_vip_hv(my: BoatAgent, their: BoatAgent):
+            return my.SuperVIP > SuperVIP.NoSuperVIP
+
+        def super_vip_fv(my: BoatAgent, their: BoatAgent):
+            return my.SuperVIP >= their.SuperVIP
+
+        super_vip.hypothesis_verifier = super_vip_hv
+        super_vip.fact_verifier = super_vip_fv
+        args.append(super_vip)
+
+        ################################################################################
 
         self.AF.add_arguments(args)
 

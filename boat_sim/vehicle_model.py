@@ -3,7 +3,7 @@ import time
 from utils import *
 """
 Car physics model adapted from: https://github.com/spacejack/carphysics2d/blob/master/public/js/Car.js
-Made changes to make it more "boaty" are in order.
+Changes to make it more "boaty" are in order.
 """
 
 
@@ -26,6 +26,8 @@ class BoatModel:
         self.frame_counter = 0
         # Do not run for more than 20 minutes.
         self.frame_limit = 24000
+        self.avoiding = set()
+        self.unfairly_avoided = set()
 
         self.init_kinematics()
 

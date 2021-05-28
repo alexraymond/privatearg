@@ -248,7 +248,7 @@ class AgentQueue:
             solver_location = "mu-toksia/mu-toksia.exe"
             semantics = "DS-PR"
             arg_str = "1"
-            result = subprocess.run([solver_location, "-p", semantics, "-fo", "apx", "-f", "sample.apx",
+            result = subprocess.run([solver_location, "-p", semantics, "-fo", "apx", "-f", filename,
                                      "-a", arg_str],
                                     capture_output=True, text=True)
             return result.stdout

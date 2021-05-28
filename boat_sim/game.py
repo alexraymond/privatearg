@@ -50,6 +50,7 @@ class BoatSprite(arcade.Sprite):
         super().__init__(self.IMAGES[boat_type], self.game_handle.sprite_scaling)
 
         self.length = self.SPRITE_LENGTHS[boat_type]
+        # FIXME: with new method signature
         self.vehicle_model = self.base_sim.add_boat(self.base_sim, center_x, center_y, boat_type=boat_type)
 
         self.center_x = center_x
@@ -400,25 +401,42 @@ def run(config_file):
     num_strategies = len(data["sim"]["dialogue_results"])
     num_budgets = len(data["sim"]["dialogue_results"]["ArgStrategy.RANDOM_CHOICE_PRIVATE"])
     start = time.time()
-    results_path = "results/"
+    now = datetime.datetime.now()
+    date_string = now.strftime("%d%b-%H%M")
+    results_path = "results/multi_strategy-{}/".format(date_string)
+    simulations_ran = 0
+    total_simulations = 320
     if headless:
         boats_dict = data["sim"]["boats"]
         for strategy in data["sim"]["dialogue_results"].keys():
+            # # FIXME: Temporary
+            # if "RANDOM" not in strategy:
+            #     continue
             path = results_path+strategy
-            os.makedirs(path)
+            if not os.path.exists(path):
+                os.makedirs(path)
             for budget in data["sim"]["dialogue_results"][strategy]:
-                sim = Sim(data["sim"], budget=int(budget), strategy=strategy)
+                sim_start = time.time()
+                simulations_ran += 1
+                sim = Sim(data["sim"], path, budget=int(budget), strategy=strategy)
                 sim.load_boats(boats_dict)
                 frame_counter = 0
                 while sim.is_running:
                     frame_counter += 1
-                    if frame_counter % 1000 == 0:
-                        print("Simulated {} frames.".format(frame_counter))
+                    # if frame_counter % 1000 == 0:
+                    #     # print("Simulated {} frames.".format(frame_counter))
                     for boat in sim.boats:
                         boat.simulate_kinematics()
-                end = time.time()
-                print("Time elapsed: {:.2f} seconds".format(end - start))
-                return sim.results_filename
+                sim_end = time.time()
+                print("Simulated {} with budget {}.".format(strategy, budget))
+                iteration_time = sim_end - sim_start
+                estimated_time_left = str(datetime.timedelta(seconds=iteration_time * (total_simulations - simulations_ran)))
+                total_time = str(datetime.timedelta(seconds=sim_end - start))
+                print("Time elapsed: {}. Total time elapsed: {}. Estimated remaining time: {}".format(
+                    str(datetime.timedelta(seconds=iteration_time)), total_time, estimated_time_left))
+        end = time.time()
+        print("Time elapsed: {:.2f} seconds".format(end - start))
+        return results_path
 
     else:
         window = MyGame(config_file)
