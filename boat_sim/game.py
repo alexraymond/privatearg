@@ -392,8 +392,72 @@ class MyGame(arcade.Window):
 
         self.set_viewport(left, right, bottom, top)
 
+def run_sim(sim):
+    while sim.is_running:
+        for boat in sim.boats:
+            boat.simulate_kinematics()
 
-def run(config_file):
+
+def run_boat_experiments(config_file):
+    """ Main method """
+    print("Loading JSON config.")
+    with open(config_file) as file:
+        data = json.load(file)
+    print("JSON config loaded.")
+    headless = data["sim"]["graphics"]["headless"]
+    if not headless:
+        return
+
+    # Fixed max_g experiment. We define max_g as 40.
+    max_g = 30
+    # Run one normal plus one subjective experiment per strategy. One objective at the end. Total of 9 per trial.
+    strategies = data['experiments']['1']['dialogue_results'].keys()
+    experiments = data['experiments']
+    start = time.time()
+    simulations_ran = 0
+    total_simulations = 45
+    for experiment_id in experiments.keys():
+        if int(experiment_id) > 5:
+            continue
+        results_path = "results/experiment{}/".format(experiment_id)
+        if not os.path.exists(results_path):
+            os.makedirs(results_path)
+        boats_dict = experiments[experiment_id]['boats']
+        dialogue_results = experiments[experiment_id]
+        sim_start = time.time()
+        for strategy in strategies:
+            print("Running experiment {} with strategy {}.".format(experiment_id, strategy))
+            sim = Sim(data["sim"], results_path, dialogue_results, budget=max_g, strategy=strategy)
+            sim.load_boats(boats_dict)
+            run_sim(sim)
+
+            print("Running subjective experiment {} with strategy {}.".format(experiment_id, strategy))
+            sim = Sim(data["sim"], results_path, dialogue_results, subjective=True, budget=max_g, strategy=strategy)
+            sim.load_boats(boats_dict)
+            run_sim(sim)
+
+            simulations_ran += 2
+
+        print("Running objective experiment {}.".format(experiment_id))
+        sim = Sim(data["sim"], results_path, dialogue_results, objective=True, budget=max_g)
+        sim.load_boats(boats_dict)
+        run_sim(sim)
+
+        simulations_ran += 1
+
+        sim_end = time.time()
+        print("Simulated experiment {}.".format(experiment_id))
+        iteration_time = sim_end - sim_start
+        estimated_time_left = str(datetime.timedelta(seconds=iteration_time * (total_simulations - simulations_ran)))
+        total_time = str(datetime.timedelta(seconds=sim_end - start))
+        print("Time elapsed: {}. Total time elapsed: {}. Estimated remaining time: {}".format(
+            str(datetime.timedelta(seconds=iteration_time)), total_time, estimated_time_left))
+
+
+
+
+
+def run_varied_budgets(config_file):
     """ Main method """
     with open(config_file) as file:
         data = json.load(file)
@@ -442,6 +506,56 @@ def run(config_file):
         window = MyGame(config_file)
         window.setup()
         arcade.run()
+
+# def run_varied_budgets(config_file):
+#     """ Main method """
+#     with open(config_file) as file:
+#         data = json.load(file)
+#     headless = data["sim"]["graphics"]["headless"]
+#     num_strategies = len(data["sim"]["dialogue_results"])
+#     num_budgets = len(data["sim"]["dialogue_results"]["ArgStrategy.RANDOM_CHOICE_PRIVATE"])
+#     start = time.time()
+#     now = datetime.datetime.now()
+#     date_string = now.strftime("%d%b-%H%M")
+#     results_path = "results/multi_strategy-{}/".format(date_string)
+#     simulations_ran = 0
+#     total_simulations = 320
+#     if headless:
+#         boats_dict = data["sim"]["boats"]
+#         for strategy in data["sim"]["dialogue_results"].keys():
+#             # # FIXME: Temporary
+#             # if "RANDOM" not in strategy:
+#             #     continue
+#             path = results_path+strategy
+#             if not os.path.exists(path):
+#                 os.makedirs(path)
+#             for budget in data["sim"]["dialogue_results"][strategy]:
+#                 sim_start = time.time()
+#                 simulations_ran += 1
+#                 sim = Sim(data["sim"], path, budget=int(budget), strategy=strategy)
+#                 sim.load_boats(boats_dict)
+#                 frame_counter = 0
+#                 while sim.is_running:
+#                     frame_counter += 1
+#                     # if frame_counter % 1000 == 0:
+#                     #     # print("Simulated {} frames.".format(frame_counter))
+#                     for boat in sim.boats:
+#                         boat.simulate_kinematics()
+#                 sim_end = time.time()
+#                 print("Simulated {} with budget {}.".format(strategy, budget))
+#                 iteration_time = sim_end - sim_start
+#                 estimated_time_left = str(datetime.timedelta(seconds=iteration_time * (total_simulations - simulations_ran)))
+#                 total_time = str(datetime.timedelta(seconds=sim_end - start))
+#                 print("Time elapsed: {}. Total time elapsed: {}. Estimated remaining time: {}".format(
+#                     str(datetime.timedelta(seconds=iteration_time)), total_time, estimated_time_left))
+#         end = time.time()
+#         print("Time elapsed: {:.2f} seconds".format(end - start))
+#         return results_path
+#
+#     else:
+#         window = MyGame(config_file)
+#         window.setup()
+#         arcade.run()
 
 
 # def run(config_file):

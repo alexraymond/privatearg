@@ -141,6 +141,9 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
     overall_data = {}
 
     experiment_id = -1
+    dialogues_path = "dialogues/"
+    if not os.path.exists(dialogues_path):
+        os.makedirs(dialogues_path)
     while i < num_experiments:
         i += 1
 
@@ -159,6 +162,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
         experiment_data["agents"] = base_queue.agents_to_dict()
         experiment_data["results"] = {}
         experiment_data["results"]["per_strategy"] = {}
+        experiment_data["ground_truth"] = {}
 
         a_gt = b_gt = c_gt = 0
         if test_type == 'ordering':
@@ -182,8 +186,11 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
                 baseline_general = copy.deepcopy(base_queue)
                 tbefore = time.time()
                 baseline_general = baseline_general.compute_ground_truth_matrix_parallel()
+                for key in baseline_general.keys():
+                    experiment_data["ground_truth"][str(key)] = baseline_general[key]
                 delta = time.time() - tbefore
                 print("Time computing ground truth matrix: {:.0f}s".format(delta))
+                # experiment_data["ground_truth"] = baseline_general
                 baseline_random = baseline_general
                 baseline_least_cost = baseline_general
                 baseline_least_attackers = baseline_general
@@ -211,7 +218,10 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
         most_att_results = experiment_data["results"]["per_strategy"][str(ArgStrategy.MOST_ATTACKS_PRIVATE)] = {}
         least_att_results = experiment_data["results"]["per_strategy"][str(ArgStrategy.LEAST_ATTACKERS_PRIVATE)] = {}
         csv_rows = []
-        for g in range(0, max_privacy_budget, 1):
+        for g in range(0, max_privacy_budget+2, 1):
+            # One round with infinite privacy budgets.
+            if g == max_privacy_budget+1:
+                g = 1000000
             print("{}".format(g), end=" ")
 
             random.seed(experiment_id)
@@ -257,11 +267,11 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
             #  "A_GROUND_TRUTH", "B_GROUND_TRUTH", "C_GROUND_TRUTH"]
 
             csv_rows.append([experiment_id, g, tp,
-                     a_random, b_random, c_random, uf_random,
-                     a_least_cost, b_least_cost, c_least_cost, uf_least_cost,
-                     a_least_att, b_least_att, c_least_att, uf_least_att,
-                     a_most_att, b_most_att, c_most_att, uf_most_att,
-                     a_gt, b_gt, c_gt])
+                             a_random, b_random, c_random, uf_random,
+                             a_least_cost, b_least_cost, c_least_cost, uf_least_cost,
+                             a_least_att, b_least_att, c_least_att, uf_least_att,
+                             a_most_att, b_most_att, c_most_att, uf_most_att,
+                             a_gt, b_gt, c_gt])
 
 
         delta = time.time() - t_before_experiment
@@ -272,12 +282,13 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
             for row in csv_rows:
                 writer.writerow(row)
             csv_file.close()
-        print("Saving to JSON...")
-        with open('experiment_data.json', 'w') as json_file:
-            json.dump(experiment_data, json_file, indent=2)
         with open('experiment_id', "w") as id_file:
             id_file.write(str(experiment_id + 1))
             id_file.close()
+        print("Saving to JSON...")
+        with open(dialogues_path+'experiment_data.json', 'w') as json_file:
+            json.dump(experiment_data, json_file, indent=2)
+
 
     t1 = time.time() - t0
     print("Time elapsed: {}".format(t1))
@@ -589,4 +600,4 @@ def benchmark(num_iterations, queue_size, privacy_budget, test_type='ordering'):
 
 
 # benchmark(num_iterations = 30, queue_size = 20, privacy_budget = 10, test_type='matrix')
-benchmark_same_strategy(num_experiments=1, queue_size=16, max_privacy_budget=60, test_type='matrix')
+benchmark_same_strategy(num_experiments=100, queue_size=16, max_privacy_budget=60, test_type='matrix')

@@ -5,37 +5,66 @@ import math
 import csv
 import json
 from datetime import datetime
+
+
 class Sim:
     """
     Main class for computing simulations and game logic in a headless manner.
     """
 
-    def __init__(self, sim_config, results_path, budget=None, strategy=None, avoiding_losers=True):
+    def __init__(self, sim_config, results_path, dialogue_data, subjective=False, objective=False,
+                 budget=None, strategy=None, avoiding_losers=True):
         # List of all BoatModels present.
         self.boats = []
         self.finished_boats = set()
         self.avoidance_min_distance = sim_config["avoidance_min_distance"]
         self.avoidance_max_distance = sim_config["avoidance_max_distance"]
         self.write_trajectories = sim_config["write_trajectories"]
+        self.subjective_trajectories = subjective
+        self.objective_trajectories = objective
+        if subjective:
+            avoiding_losers = False
+        self.all_dialogue_data = dialogue_data
         self.only_frontal_avoidance = True
         self.max_budget = 2 * budget  # The budget received is individual. Communication cost includes both.
         self.strategy = strategy
-        # FIXME: Stupid JSON nesting.
-        self.agents_dialogue_results = sim_config["dialogue_results"][strategy][str(budget)]["agents"]
-        self.avoiding_losers = avoiding_losers
-        self.results_path = results_path
         self.winners = {}
         self.costs = {}
-        self.process_dialogues()
+        self.subjectively_unfair = {}
         self.trajectories = {}
+        # FIXME: Stupid JSON nesting.
+        if not objective:
+            self.specific_dialogue_results = self.all_dialogue_data['dialogue_results'][strategy][str(budget)]["agents"]
+            self.process_dialogues()
+        else:
+            self.specific_dialogue_results = self.all_dialogue_data['ground_truth']
+            self.process_ground_truth()
+        self.avoiding_losers = avoiding_losers
+        self.results_path = results_path
         self.sim_config = sim_config
         self.is_running = True
         # JSON (preferred) or CSV. Use lowercase.
         self.output_type = "json"
         self.results_filename = ""
 
+    def process_ground_truth(self):
+        for result in self.specific_dialogue_results.keys():
+            agents_str = result
+            agents_str = agents_str.replace("(", "")
+            agents_str = agents_str.replace(")", "")
+            agents_str = agents_str.split(", ")
+            defender = int(agents_str[0])
+            challenger = int(agents_str[1])
+            winner = self.specific_dialogue_results[result]
+            a, b = sorted([defender, challenger])
+            if (a, b) not in self.winners:
+                self.winners[(a, b)] = winner
+                self.costs[(a, b)] = 0
+            if (defender, challenger) not in self.subjectively_unfair:
+                self.subjectively_unfair[(defender, challenger)] = False
+
     def process_dialogues(self):
-        for agent in self.agents_dialogue_results.values():
+        for agent in self.specific_dialogue_results.values():
             for result in agent["dialogue_results"].keys():
                 agents_str = result
                 agents_str = agents_str.replace("(", "")
@@ -45,11 +74,13 @@ class Sim:
                 challenger = int(agents_str[1])
                 winner = agent["dialogue_results"][result]["winner"]
                 total_cost = agent["dialogue_results"][result]["total_privacy_cost"]
+                unfair = agent["dialogue_results"][result]["considered_unfair"]
                 a, b = sorted([defender, challenger])
-                if (a,b) not in self.winners:
+                if (a, b) not in self.winners:
                     self.winners[(a, b)] = winner
                     self.costs[(a, b)] = total_cost
-
+                if (defender, challenger) not in self.subjectively_unfair:
+                    self.subjectively_unfair[(defender, challenger)] = unfair
 
     def concedes(self, id_a, id_b):
         """
@@ -68,8 +99,20 @@ class Sim:
                 filename = "results/result-{}-boats.csv".format(len(self.boats))
                 self.export_trajectories_csv(filename)
             elif self.output_type == "json":
-                filename = self.results_path + "/{}-g-{}-{}-boats.json".format("A" if self.avoiding_losers else "B",
-                                                                                 self.max_budget, len(self.boats))
+                if self.objective_trajectories:
+                    sim_type = "objective"
+                    filename = self.results_path + "/{}-g-{}-{}-boats.json".format(sim_type, self.max_budget,
+                                                                                   len(self.boats))
+                elif self.subjective_trajectories:
+                    sim_type = "subjective"
+                    filename = self.results_path + "/{}-{}-g-{}-{}-boats.json".format(sim_type, self.strategy,
+                                                                                      self.max_budget,
+                                                                                      len(self.boats))
+                else:
+                    sim_type = "normal"
+                    filename = self.results_path + "/{}-{}-g-{}-{}-boats.json".format(sim_type, self.strategy,
+                                                                                      self.max_budget,
+                                                                                      len(self.boats))
                 self.export_trajectories_json(filename)
                 self.results_filename = filename
 
@@ -91,10 +134,14 @@ class Sim:
     def export_trajectories_json(self, filename):
         output_dict = {}
         output_dict["y_limit"] = self.sim_config["graphics"]["height"]
+        output_dict["avoidances"] = {}
+        output_dict["emergency_avoidances"] = {}
         output_dict["boats"] = {}
         for boat in self.boats:
             boat_id = boat.boat_id
             output_dict["boats"][str(boat_id)] = self.trajectories[boat_id]
+            output_dict["emergency_avoidances"][str(boat_id)] = list(boat.unfairly_avoided)
+            output_dict["avoidances"][str(boat_id)] = list(boat.avoiding)
         with open(filename, 'w') as file:
             json.dump(output_dict, file, indent=1)
             file.close()
@@ -116,7 +163,7 @@ class Sim:
             if distance > max_speed_distance:
                 df = 1
             else:
-                df = bound(distance/max_speed_distance, 0.0, 1.0)
+                df = bound(distance / max_speed_distance, 0.0, 1.0)
             v = np.array([df * np.cos(desired_heading), df * np.sin(desired_heading)])
             return v
 
@@ -133,18 +180,17 @@ class Sim:
             proportional_cost = self.costs[(a, b)] / max_budget if max_budget > 0 else 1
             activation_distance = bound(max_distance - (proportional_cost * max_distance), min_distance, max_distance)
 
-
             if their_vehicle.at_destination:
                 return zero_v
             self.only_frontal_avoidance = True
 
             heading_from_obstacle = math.atan2(my - ty, mx - tx)
             heading_to_obstacle = math.atan2(ty - my, tx - mx)
-            heading_to_obstacle = (heading_to_obstacle + (4*math.pi))
+            heading_to_obstacle = (heading_to_obstacle + (4 * math.pi))
             their_heading = their_vehicle.heading
-            relative_heading = (heading_to_obstacle - their_heading) % (2*math.pi)
+            relative_heading = (heading_to_obstacle - their_heading) % (2 * math.pi)
             distance = math.dist((tx, ty), (mx, my))
-            asymmetry = -math.pi/3
+            asymmetry = -math.pi / 3
             k_d = 1.0
             # p = {1.0, 2.0, 3.0} mean linear, quadratic, and cubic decay, respectively.
             p = 1
@@ -152,12 +198,13 @@ class Sim:
 
             # First time the potential field is activated
             if i_lost and distance < activation_distance and their_id not in my_vehicle.avoiding:
-                my_vehicle.avoiding.add(their_id)
+                if not self.subjectively_unfair[(my_id, their_id)]:
+                    my_vehicle.avoiding.add(their_id)
 
             # Avoid dividing by zero.
             if i_won and distance < min_distance and self.avoiding_losers:
                 df = max_df
-            elif i_lost and distance < min_distance:
+            elif i_lost and distance < min_distance and not self.subjective_trajectories:
                 df = max_df
             elif distance > max_distance:
                 df = 0
@@ -175,8 +222,8 @@ class Sim:
                 df = 0 if distance > max_distance else df
 
             # Additional angle to force boats to choose starboard avoidance when head-on.
-            if math.pi + math.pi > (relative_heading + math.pi) % (2*math.pi) > math.pi - math.pi/8:
-                heading_from_obstacle = ((heading_from_obstacle + 2*math.pi) - asymmetry) % (2*math.pi)
+            if math.pi + math.pi > (relative_heading + math.pi) % (2 * math.pi) > math.pi - math.pi / 8:
+                heading_from_obstacle = ((heading_from_obstacle + 2 * math.pi) - asymmetry) % (2 * math.pi)
 
             v = np.array([df * np.cos(heading_from_obstacle), df * np.sin(heading_from_obstacle)])
 
@@ -206,7 +253,8 @@ class Sim:
 
     def load_boats(self, boats_dict):
         for boat_entry in boats_dict:
-            boat = self.add_boat(self, boat_entry["id"], boat_entry["start_x"], boat_entry["start_y"], boat_entry["size"])
+            boat = self.add_boat(self, boat_entry["id"], boat_entry["start_x"], boat_entry["start_y"],
+                                 boat_entry["size"])
             boat.set_goal(boat_entry["goal_x"], boat_entry["goal_y"])
             boat.name = boat_entry["name"]
             boat.heading = math.radians(boat_entry["initial_heading"])
@@ -214,7 +262,7 @@ class Sim:
             boat.write_trajectories = self.write_trajectories
 
     def add_boat(self, sim, boat_id, x, y, boat_type):
-        boat = BoatModel(sim=sim, boat_id=boat_id, position=(x,y), boat_type=boat_type)
+        boat = BoatModel(sim=sim, boat_id=boat_id, position=(x, y), boat_type=boat_type)
         if self.write_trajectories:
             self.trajectories[boat_id] = []
         self.boats.append(boat)

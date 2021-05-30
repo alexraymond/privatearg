@@ -1,9 +1,11 @@
 from config.scenario_generator import generate_random_scenario
-from config.scenario_generator import generate_scenario
-from game import run
+from config.scenario_generator import generate_multi_scenario
+from game import run_varied_budgets, run_boat_experiments
 from plot_results import ResultsManager
 import sys
 import argparse
+
+
 
 def parse_workflow(args):
     parser = argparse.ArgumentParser()
@@ -27,7 +29,7 @@ def parse_workflow(args):
         # Generates scenario file.
         print("Generating scenario file...")
         # scenario_file = generate_random_scenario(args.n)
-        scenario_file = generate_scenario()
+        scenario_file = generate_multi_scenario()
         print("Scenario file {} generated.".format(scenario_file))
     else:
         scenario_file = args.scenario
@@ -38,7 +40,7 @@ def parse_workflow(args):
 
     if args.gsr or args.sr or args.s:
         print("Running simulation...")
-        results_filename = run(scenario_file)
+        results_filename = run_boat_experiments(scenario_file)
         print("Results file {} generated.".format(results_filename))
 
 
