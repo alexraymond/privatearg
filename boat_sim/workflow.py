@@ -1,7 +1,7 @@
 from config.scenario_generator import generate_random_scenario
 from config.scenario_generator import generate_multi_scenario
 from game import run_varied_budgets, run_boat_experiments
-from plot_results import ResultsManager
+from plot_results import ResultsManager, MultiTrialResults
 import sys
 import argparse
 
@@ -50,10 +50,12 @@ def parse_workflow(args):
 
     if args.results:
         results_filename = args.results
-
-    if args.gsr or args.sr or (args.r and args.results):
         loader = ResultsManager(results_filename)
         loader.plot_results()
+    elif args.gsr or args.sr:
+        # loader = ResultsManager(results_filename)
+        # loader.plot_results()
+        loader = MultiTrialResults(g=60)
 
 
 if __name__ == "__main__":

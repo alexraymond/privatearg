@@ -415,9 +415,9 @@ def run_boat_experiments(config_file):
     experiments = data['experiments']
     start = time.time()
     simulations_ran = 0
-    total_simulations = 45
+    total_simulations = 450
     for experiment_id in experiments.keys():
-        if int(experiment_id) > 5:
+        if int(experiment_id) < 50:
             continue
         results_path = "results/experiment{}/".format(experiment_id)
         if not os.path.exists(results_path):

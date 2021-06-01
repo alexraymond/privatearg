@@ -191,10 +191,10 @@ class Sim:
             relative_heading = (heading_to_obstacle - their_heading) % (2 * math.pi)
             distance = math.dist((tx, ty), (mx, my))
             asymmetry = -math.pi / 3
-            k_d = 1.0
+            k_d = 2.0
             # p = {1.0, 2.0, 3.0} mean linear, quadratic, and cubic decay, respectively.
-            p = 1
-            max_df = 1.0
+            p = 2
+            max_df = 2.0
 
             # First time the potential field is activated
             if i_lost and distance < activation_distance and their_id not in my_vehicle.avoiding:
