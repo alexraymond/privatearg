@@ -20,7 +20,7 @@ plt.rc('axes', axisbelow=True)
 pd.set_option('display.max_rows', 500)
 pd.set_option('display.max_columns', 500)
 pd.set_option('display.width', 1000)
-sns.set(style="whitegrid", font_scale=1.5)
+sns.set(style="whitegrid", font_scale=2)
 textfont = {'fontname': 'Linux Libertine'}
 ttfont = {'fontname': 'Inconsolata'}
 plt.rcParams['font.family'] = 'Linux Libertine'
@@ -144,6 +144,15 @@ class MultiTrialResults:
             print("Dataframe")
             print(df)
 
+            asterisks = {}
+
+            def get_asterisks(p):
+                s = ""
+                s += '*' if p <= 0.05 else ''
+                s += '*' if p <= 0.01 else ''
+                s += '*' if p <= 0.001 else ''
+                return s
+
 
             for i in range(len(data)):
                 print("[{}]".format(labels[i]))
@@ -153,6 +162,8 @@ class MultiTrialResults:
                 print("SD {} ({}): {}".format(category, labels[i], np.std(data[i])))
                 print("Variance {} ({}): {}".format(category, labels[i], np.var(data[i])))
                 for j in range(len(data)):
+                    key = labels[i]+labels[j]
+                    asterisks[key] = ""
                     if stat == "mw":
                         mw_2s, p_mw_2s = scipy.stats.mannwhitneyu(data[i], data[j], alternative='two-sided')
                         # if p_mw_2s < 0.05:
@@ -170,7 +181,8 @@ class MultiTrialResults:
                         print("{}: TT two-sided {} vs {}. T = {:.2f}, p = {}".format(category, labels[i], labels[j], tt_2s,
                                                                                  p_tt_2s))
                         tt_less, p_less = scipy.stats.ttest_ind(data[i], data[j], equal_var=False, alternative='less')
-                        # if p_less < 0.05:
+                        if p_less <= 0.05 and p_tt_2s <= 0.05:
+                            asterisks[key] = get_asterisks(p_less)
                         print("{}: tt less {} vs {}. T = {:.2f}, p = {}".format(category, labels[i], labels[j], tt_less,
                                                                             p_less))
                         tt_greater, p_greater = scipy.stats.ttest_ind(data[i], data[j], equal_var=False, alternative='greater')
@@ -222,7 +234,7 @@ class MultiTrialResults:
 
             order = [0, 1, 2, 3, 4, 5]
 
-            def plot_multiple(dfs):
+            def plot_multiple(dfs, asterisks):
                 i = 0
                 strategy_colours = {"random": palette[0], "min_cost": palette[1], "offensive": palette[2], "defensive": palette[3]}
                 for tdf in dfs:
@@ -234,28 +246,44 @@ class MultiTrialResults:
                     for t in types:
                         bdf = tdf.loc[tdf['variable'] == t]
                         delta = 0.15
-                        pos = bdf['position'].iloc[0]
-                        pos += delta if i else -delta
-                        i += 1
+                        bp_xpos = bdf['position'].iloc[0]
+                        bp_xpos += delta if i else -delta
+
                         series = bdf['value'].to_numpy()
-                        bp = plot.boxplot(series, positions=[pos], showfliers=False,
+                        bp = plot.boxplot(series, positions=[bp_xpos], showfliers=False,
                         showcaps=True,widths=0.12, patch_artist=True,
                         boxprops=dict(color='k', facecolor=strategy_colours[t], linewidth=1.5),
                         whiskerprops=dict(color=strategy_colours[t], linewidth=1.5),
                         medianprops=dict(color="k", linewidth=1.5))
 
+                        key = types[0]+types[1] if t == types[0] else types[1]+types[0]
+                        floating_text = asterisks[key]
+                        upper_whisker = bp['whiskers'][1].get_ydata()[1]
+                        lentext = len(floating_text)
+                        textdelta = 0.11 * lentext
+                        plot.text(bp_xpos - (textdelta if i == 0 else 0), upper_whisker + 1, floating_text,
+                                  fontweight='extra bold', fontsize=24, color=strategy_colours[t])
+                        i += 1
 
-            plot_multiple([df12, df13, df14, df23, df24, df34])
+
+            plot_multiple([df12, df13, df14, df23, df24, df34], asterisks)
             plot.set_xlabel(xlabel)
             plot.set_xticks([])
             plot.set_ylabel(ylabel)
             plot.set_ylim(ylim)
-            custom_lines = [Line2D([0], [0], color=palette[0], lw=5),
-                            Line2D([0], [0], color=palette[1], lw=5),
-                            Line2D([0], [0], color=palette[2], lw=5),
-                            Line2D([0], [0], color=palette[3], lw=5)]
+            custom_lines = [Line2D([0], [0], color=palette[0], lw=12),
+                            Line2D([0], [0], color=palette[1], lw=12),
+                            Line2D([0], [0], color=palette[2], lw=12),
+                            Line2D([0], [0], color=palette[3], lw=12)]
 
-            plot.legend(custom_lines, ['random', 'min_cost', 'offensive', 'defensive'], prop={'family':'Inconsolata', 'size':12})
+            if category == "NTS_frechet":
+                plot.legend(custom_lines, ['random', 'min_cost', 'offensive', 'defensive'], prop={'family':'Inconsolata', 'size':24},
+                            loc='lower center', bbox_to_anchor=(0.5, 1.04),
+                            ncol=4, fancybox=True, shadow=True
+                            )
+            else:
+                plot.get_legend().remove()
+
             plt.grid(color='lightgray', linestyle='dashed')
             print("Data for {}".format(plot.get_title()))
             # print(get_boxplot_data(labels, bp))
@@ -265,7 +293,7 @@ class MultiTrialResults:
 
         miny = 0
 
-        kinematics_fig = plt.figure(figsize=(21, 16))
+        kinematics_fig = plt.figure(figsize=(27, 16))
 
         # acc_plot = kinematics_fig.add_subplot(2, 3, 1)
         # add_data(acc_plot, "acc_area", self.strategies, title="Mean area under acceleration curve")
@@ -274,7 +302,7 @@ class MultiTrialResults:
         add_data(lay_plot, category="lay_area", strategies=self.strategies, title="Lateral acceleration", ylabel="Integral of lat. acceleration dt", ylim=[miny, 900])
 
         yaw_plot = kinematics_fig.add_subplot(2, 3, 2)
-        add_data(yaw_plot, category="yaw_area", strategies=self.strategies, title="Yaw rate", ylabel="Integral of yaw rate dt", ylim=[miny, 410])
+        add_data(yaw_plot, category="yaw_area", strategies=self.strategies, title="Yaw rate", ylabel="Integral of yaw rate dt", ylim=[miny, 400])
 
         # jerk_plot = kinematics_fig.add_subplot(2, 3, 4)
         # add_data(jerk_plot, "jerk_area", self.strategies, title="Mean area under jerk curve")
@@ -290,7 +318,7 @@ class MultiTrialResults:
         # add_data(NTO_pcm, "NTO_pcm", self.strategies)
 
         NTO_frechet = kinematics_fig.add_subplot(2, 3, 4)
-        add_data(NTO_frechet, category="NTO_frechet", title="Objective Unfairness", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 1100])
+        add_data(NTO_frechet, category="NTO_frechet", title="Objective Unfairness", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 800])
 
         # NTO_area = NTO_fig.add_subplot(2, 3, 3)
         # add_data(NTO_area, "NTO_area", self.strategies)
@@ -309,7 +337,7 @@ class MultiTrialResults:
         # add_data(NTS_pcm, "NTS_pcm", self.strategies)
 
         NTS_frechet = kinematics_fig.add_subplot(2, 3, 5)
-        add_data(NTS_frechet, category="NTS_frechet", title="Subjective Unfairness", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 310])
+        add_data(NTS_frechet, category="NTS_frechet", title="Subjective Unfairness", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 300])
 
         # NTS_area = NTS_fig.add_subplot(2, 3, 3)
         # add_data(NTS_area, "NTS_area", self.strategies)
@@ -327,7 +355,7 @@ class MultiTrialResults:
         # add_data(STO_pcm, "STO_pcm", self.strategies)
 
         STO_frechet = kinematics_fig.add_subplot(2, 3, 6)
-        add_data(STO_frechet, category="STO_frechet", title="Subjectivity Gap", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 1100])
+        add_data(STO_frechet, category="STO_frechet", title="Subjectivity Gap", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 800])
 
         # STO_area = STO_fig.add_subplot(2, 3, 3)
         # add_data(STO_area, "STO_area", self.strategies)
@@ -345,10 +373,19 @@ class MultiTrialResults:
         # qq_plot = STO_fig.add_subplot(2,3,6)
         # scipy.stats.probplot(self.display_results["STO_frechet"]["ArgStrategy.LEAST_ATTACKERS_PRIVATE"], dist="norm", plot=qq_plot)
 
-        plt.savefig('plots.jpg', dpi=1200)
-        plt.savefig('plots.eps')
-        plt.savefig('plots.pdf')
-        plt.savefig('plots.svg')
+        # plt.gca().set_axis_off()
+        # plt.subplots_adjust(top=1, bottom=0, right=1, left=0,
+        #                     hspace=0, wspace=0)
+        # plt.margins(0, 0)
+        # plt.gca().xaxis.set_major_locator(plt.NullLocator())
+        # plt.gca().yaxis.set_major_locator(plt.NullLocator())
+        plt.subplots_adjust(top=0.95)
+        plt.savefig("plots.pdf", bbox_inches='tight',
+                    pad_inches=0)
+        plt.savefig('plots.jpg', dpi=600, bbox_inches='tight',
+                    pad_inches=0)
+        plt.savefig('plots.svg', bbox_inches='tight',
+                    pad_inches=0)
         plt.show()
 
     def pre_plot_results(self):
