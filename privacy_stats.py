@@ -16,7 +16,7 @@ labels = ['random', 'least_cost', 'most_attacks', 'least_attackers']
 costs = {}
 more_than = {}
 
-max_g = 30
+max_g = 20
 
 for exp_id in data.keys():
     for strategy in strategies:
@@ -55,22 +55,22 @@ print("Median least_attackers: {}".format(np.median(plot_costs[3])))
 random_plot = fig.add_subplot(4, 2, 3)
 random_plot.hist(plot_costs[0], bins=20)
 random_plot.set_title("Random")
-random_plot.set_xlim([0, 2*max_g])
+random_plot.set_xlim([0, 100])
 
 least_cost_plot = fig.add_subplot(4, 2, 4)
 least_cost_plot.hist(plot_costs[1], bins=20)
 least_cost_plot.set_title("Least cost")
-least_cost_plot.set_xlim([0, 2*max_g])
+least_cost_plot.set_xlim([0, 100])
 
 most_attacks_plot = fig.add_subplot(4, 2, 5)
 most_attacks_plot.hist(plot_costs[2], bins=20)
 most_attacks_plot.set_title("Most attacks")
-most_attacks_plot.set_xlim([0, 2*max_g])
+most_attacks_plot.set_xlim([0, 100])
 
 least_attackers_plot = fig.add_subplot(4, 2, 6)
 least_attackers_plot.hist(plot_costs[3], bins=20)
 least_attackers_plot.set_title("Least attackers")
-least_attackers_plot.set_xlim([0, 2*max_g])
+least_attackers_plot.set_xlim([0, 100])
 
 prob_plot = fig.add_subplot(4, 1, 4)
 x = [x for x in range(100)]

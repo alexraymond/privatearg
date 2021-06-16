@@ -409,16 +409,14 @@ def run_boat_experiments(config_file):
         return
 
     # Fixed max_g experiment. We define max_g as 40.
-    max_g = 30
+    max_g = 25
     # Run one normal plus one subjective experiment per strategy. One objective at the end. Total of 9 per trial.
     strategies = data['experiments']['1']['dialogue_results'].keys()
     experiments = data['experiments']
     start = time.time()
     simulations_ran = 0
-    total_simulations = 450
+    total_simulations = 100
     for experiment_id in experiments.keys():
-        if int(experiment_id) < 50:
-            continue
         results_path = "results/experiment{}/".format(experiment_id)
         if not os.path.exists(results_path):
             os.makedirs(results_path)
@@ -436,7 +434,6 @@ def run_boat_experiments(config_file):
             sim.load_boats(boats_dict)
             run_sim(sim)
 
-            simulations_ran += 2
 
         print("Running objective experiment {}.".format(experiment_id))
         sim = Sim(data["sim"], results_path, dialogue_results, objective=True, budget=max_g)
@@ -469,7 +466,7 @@ def run_varied_budgets(config_file):
     date_string = now.strftime("%d%b-%H%M")
     results_path = "results/multi_strategy-{}/".format(date_string)
     simulations_ran = 0
-    total_simulations = 320
+    total_simulations = 900
     if headless:
         boats_dict = data["sim"]["boats"]
         for strategy in data["sim"]["dialogue_results"].keys():

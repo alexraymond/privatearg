@@ -55,7 +55,7 @@ def parse_workflow(args):
     elif args.gsr or args.sr:
         # loader = ResultsManager(results_filename)
         # loader.plot_results()
-        loader = MultiTrialResults(g=60)
+        loader = MultiTrialResults(g=50)
 
 
 if __name__ == "__main__":

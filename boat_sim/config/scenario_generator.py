@@ -36,7 +36,7 @@ Wisdom
 Halo
 Resolution
 USS Ulysses
-HWSS The Traveler
+HWSS Traveller
 SSE Harbinger
 BS Vigilant
 ISS Intervention
@@ -51,12 +51,12 @@ SC Aries
 USS Destroyer
 USS The Trident
 Duke
-The Titan
+Titan
 Tyrant
 Flavia
 Legacy
 USS Thor
-CS The Spectator
+CS Spectator
 USS Crash
 SC Pandora
 BS Vengeance
@@ -67,7 +67,7 @@ Destiny
 Valhalla
 STS Vulture
 STS Victoria
-CS Cyclopse
+CS Cyclops
 HWSS Wellington
 HWSS Tennessee
 Star Talon
@@ -99,7 +99,7 @@ def generate_multi_scenario(filename = '../experiment_data.json'):
         experiment_data = overall_data[experiment_id]
         current_scenario = scenario["experiments"][experiment_id] = {}
         num_boats = experiment_data["num_agents"]
-        horizontal_separation = 1000
+        horizontal_separation = 1100
         max_width = horizontal_separation * num_boats  # Added width so initial scene is empty.
         boat_names = names_string.split('\n')
         boats = []

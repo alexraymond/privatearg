@@ -7,11 +7,43 @@ import numpy as np
 import similaritymeasures as sm
 import scipy.stats
 from scipy import signal
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from matplotlib.lines import Line2D
+from matplotlib.cbook import boxplot_stats
+import pandas as pd
+import seaborn as sns
+sns.set_palette("colorblind")
+plt.rc('axes', axisbelow=True)
+
+pd.set_option('display.max_rows', 500)
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.width', 1000)
+sns.set(style="whitegrid", font_scale=1.5)
+textfont = {'fontname': 'Linux Libertine'}
+ttfont = {'fontname': 'Inconsolata'}
+plt.rcParams['font.family'] = 'Linux Libertine'
+# matplotlib.rc('font', family='Linux Libertine')
 
 colours = list("bgrcmyk") + list(mcolors.TABLEAU_COLORS.keys())
 g = 9.81  # m/s^2
+
+def get_boxplot_data(labels, bp):
+    rows_list = []
+
+    for i in range(len(labels)):
+        dict1 = {}
+        dict1['label'] = labels[i]
+        dict1['lower_whisker'] = bp['whiskers'][i*2].get_ydata()[1]
+        dict1['lower_quartile'] = bp['boxes'][i].get_ydata()[1]
+        dict1['median'] = bp['medians'][i].get_ydata()[1]
+        dict1['mean'] = bp['means'][i].get_ydata()[0]
+        dict1['upper_quartile'] = bp['boxes'][i].get_ydata()[2]
+        dict1['upper_whisker'] = bp['whiskers'][(i*2)+1].get_ydata()[1]
+        rows_list.append(dict1)
+
+    return pd.DataFrame(rows_list)
 
 
 class TextColour:
@@ -26,7 +58,7 @@ class TextColour:
     UNDERLINE = '\033[4m'
     END = '\033[0m'
 
-load_last = False
+load_last = True
 
 class MultiTrialResults:
     def __init__(self, g):
@@ -43,7 +75,7 @@ class MultiTrialResults:
         self.display_results = {}
 
         if load_last:
-            with open('final_results.json') as final_results_file:
+            with open('final_results_g60.json') as final_results_file:
                 self.display_results = json.load(final_results_file)
         else:
             print("Calculating comparisons...")
@@ -88,112 +120,235 @@ class MultiTrialResults:
 
     def plot_results(self):
 
-        def add_data(plot, category, strategies):
+        def add_data(plot, category, strategies, stat="tt", title="", xlabel="", ylabel="", ylim=None):
             index = 0
             labels = []
-            plot.set_title(category)
+            plot.set_title(category if not title else title, **textfont)
             short_names = {"ArgStrategy.RANDOM_CHOICE_PRIVATE": "random",
-                           "ArgStrategy.LEAST_COST_PRIVATE": "least_cost",
-                           "ArgStrategy.MOST_ATTACKS_PRIVATE": "most_attacks",
-                           "ArgStrategy.LEAST_ATTACKERS_PRIVATE": "least_attackers"}
+                           "ArgStrategy.LEAST_COST_PRIVATE": "min_cost",
+                           "ArgStrategy.MOST_ATTACKS_PRIVATE": "offensive",
+                           "ArgStrategy.LEAST_ATTACKERS_PRIVATE": "defensive"}
             data = []
+            df = pd.DataFrame()
             for strategy in strategies:
-                labels.append(short_names[strategy])
+                label = short_names[strategy]
+                labels.append(label)
                 data.append(self.display_results[category][strategy])
+                df[label] = pd.Series(self.display_results[category][strategy])
+                # temp_df = pd.DataFrame({label: self.display_results[category][strategy]})
+                # df.append(temp_df)
+
+            print("\n\n{}***** {} *****{}".format(TextColour.BOLD, category, TextColour.END))
+
+            # df = pd.DataFrame(list(zip(*data)))
+            print("Dataframe")
+            print(df)
+
 
             for i in range(len(data)):
-                for j in range(i, len(data)):
-                    mw_2s, p_mw_2s = scipy.stats.mannwhitneyu(data[i], data[j], alternative='two-sided')
-                    if p_mw_2s < 0.05:
-                        print("{}: MW two-sided {} vs {}. H = {}, p = {}".format(category, labels[i], labels[j], mw_2s, p_mw_2s))
-                    mw_less, p_less = scipy.stats.mannwhitneyu(x=data[i], y=data[j], alternative='less')
-                    if p_less < 0.05:
+                print("[{}]".format(labels[i]))
+                print("Sample size {} ({}): {}".format(category, labels[i], len(data[i])))
+                print("Mean {} ({}): {}".format(category, labels[i], np.mean(data[i])))
+                print("Median {} ({}): {}".format(category, labels[i], np.median(data[i])))
+                print("SD {} ({}): {}".format(category, labels[i], np.std(data[i])))
+                print("Variance {} ({}): {}".format(category, labels[i], np.var(data[i])))
+                for j in range(len(data)):
+                    if stat == "mw":
+                        mw_2s, p_mw_2s = scipy.stats.mannwhitneyu(data[i], data[j], alternative='two-sided')
+                        # if p_mw_2s < 0.05:
+                        print("{}: MW two-sided {} vs {}. U = {}, p = {}".format(category, labels[i], labels[j], mw_2s, p_mw_2s))
+                        mw_less, p_less = scipy.stats.mannwhitneyu(x=data[i], y=data[j], alternative='less')
+                        # if p_less < 0.05:
                         print("{}: MW less {} vs {}. U = {}, p = {}".format(category, labels[i], labels[j], mw_less, p_less))
-                    mw_greater, p_greater = scipy.stats.mannwhitneyu(x=data[i], y=data[j], alternative='greater')
-                    if p_greater < 0.05:
+                        mw_greater, p_greater = scipy.stats.mannwhitneyu(x=data[i], y=data[j], alternative='greater')
+                        # if p_greater < 0.05:
                         print("{}: MW greater {} vs {}. U = {}, p = {}".format(category, labels[i], labels[j], mw_greater, p_greater))
+                        print("\n")
+                    elif stat == "tt":
+                        tt_2s, p_tt_2s = scipy.stats.ttest_ind(data[i], data[j], equal_var=False, alternative='two-sided')
+                        # if p_tt_2s < 0.05:
+                        print("{}: TT two-sided {} vs {}. T = {:.2f}, p = {}".format(category, labels[i], labels[j], tt_2s,
+                                                                                 p_tt_2s))
+                        tt_less, p_less = scipy.stats.ttest_ind(data[i], data[j], equal_var=False, alternative='less')
+                        # if p_less < 0.05:
+                        print("{}: tt less {} vs {}. T = {:.2f}, p = {}".format(category, labels[i], labels[j], tt_less,
+                                                                            p_less))
+                        tt_greater, p_greater = scipy.stats.ttest_ind(data[i], data[j], equal_var=False, alternative='greater')
+                        # if p_greater < 0.05:
+                        print(
+                            "{}: tt greater {} vs {}. T = {:.2f}, p = {}".format(category, labels[i], labels[j], tt_greater,
+                                                                             p_greater))
+                        print("\n")
+                    elif stat == "anova":
+                        anova_2s, p_anova_2s = scipy.stats.kruskal(data[i], data[j])
+                        # if p_anova_2s < 0.05:
+                        print("{}: friedman {} vs {}. F = {:.2f}, p = {}".format(category, labels[i], labels[j], anova_2s,
+                                                                                 p_anova_2s))
+                        # anova_less, p_less = scipy.stats.f_oneway(data[i], data[j])
+                        # # if p_less < 0.05:
+                        # print("{}: anova less {} vs {}. F = {:.2f}, p = {}".format(category, labels[i], labels[j], anova_less,
+                        #                                                     p_less))
+                        # anova_greater, p_greater = scipy.stats.f_oneway(data[i], data[j], equal_var=True, alternative='greater')
+                        # # if p_greater < 0.05:
+                        # print(
+                        #     "{}: anova greater {} vs {}. F = {:.2f}, p = {}".format(category, labels[i], labels[j], anova_greater,
+                        #                                                      p_greater))
+                        print("\n")
 
-            plot.boxplot(data, positions=[0, 1, 2, 3], showfliers=False)
-            plot.set_xticklabels(labels)
+            # bp = plot.boxplot(data, positions=[0, 1, 2, 3], showmeans=True, showfliers=False)
+            df_flat = df[["random", "min_cost", "offensive", "defensive"]].melt().assign(x='vars')
+            df_flat["strategy"] = df_flat[["variable"]].apply(lambda x: "_".join(x), axis=1)
+            # df_flat["combination"] = df_flat[["variable", "strategy"]].apply(lambda x: "_".join(x), axis=1)
+
+            df12 = df[["random", "min_cost"]].melt().assign(x='vars')
+            df12["position"] = 0
+
+            df13 = df[["random", "offensive"]].melt().assign(x='vars')
+            df13["position"] = 1
+
+            df14 = df[["random", "defensive"]].melt().assign(x='vars')
+            df14["position"] = 2
+
+            df23 = df[["min_cost", "offensive"]].melt().assign(x='vars')
+            df23["position"] = 3
+
+            df24 = df[["min_cost", "defensive"]].melt().assign(x='vars')
+            df24["position"] = 4
+
+            df34 = df[["offensive", "defensive"]].melt().assign(x='vars')
+            df34["position"] = 5
+
+            palette = sns.color_palette("colorblind")
+
+            order = [0, 1, 2, 3, 4, 5]
+
+            def plot_multiple(dfs):
+                i = 0
+                strategy_colours = {"random": palette[0], "min_cost": palette[1], "offensive": palette[2], "defensive": palette[3]}
+                for tdf in dfs:
+                    sns.violinplot(data=tdf, x='position', y='value', order=order,
+                                   palette=strategy_colours,
+                                   hue='variable', split=True, scale="count", cut=0, saturation=0.5, inner=None)
+                    types = tdf["variable"].unique()
+                    i = 0
+                    for t in types:
+                        bdf = tdf.loc[tdf['variable'] == t]
+                        delta = 0.15
+                        pos = bdf['position'].iloc[0]
+                        pos += delta if i else -delta
+                        i += 1
+                        series = bdf['value'].to_numpy()
+                        bp = plot.boxplot(series, positions=[pos], showfliers=False,
+                        showcaps=True,widths=0.12, patch_artist=True,
+                        boxprops=dict(color='k', facecolor=strategy_colours[t], linewidth=1.5),
+                        whiskerprops=dict(color=strategy_colours[t], linewidth=1.5),
+                        medianprops=dict(color="k", linewidth=1.5))
+
+
+            plot_multiple([df12, df13, df14, df23, df24, df34])
+            plot.set_xlabel(xlabel)
+            plot.set_xticks([])
+            plot.set_ylabel(ylabel)
+            plot.set_ylim(ylim)
+            custom_lines = [Line2D([0], [0], color=palette[0], lw=5),
+                            Line2D([0], [0], color=palette[1], lw=5),
+                            Line2D([0], [0], color=palette[2], lw=5),
+                            Line2D([0], [0], color=palette[3], lw=5)]
+
+            plot.legend(custom_lines, ['random', 'min_cost', 'offensive', 'defensive'], prop={'family':'Inconsolata', 'size':12})
+            plt.grid(color='lightgray', linestyle='dashed')
+            print("Data for {}".format(plot.get_title()))
+            # print(get_boxplot_data(labels, bp))
 
         ############################################################
         # Plotting kinematics figure.
 
-        kinematics_fig = plt.figure(figsize=(20, 16))
+        miny = 0
 
-        acc_plot = kinematics_fig.add_subplot(2, 3, 1)
-        add_data(acc_plot, "acc_area", self.strategies)
+        kinematics_fig = plt.figure(figsize=(21, 16))
 
-        lay_plot = kinematics_fig.add_subplot(2, 3, 2)
-        add_data(lay_plot, "lay_area", self.strategies)
+        # acc_plot = kinematics_fig.add_subplot(2, 3, 1)
+        # add_data(acc_plot, "acc_area", self.strategies, title="Mean area under acceleration curve")
 
-        yaw_plot = kinematics_fig.add_subplot(2, 3, 3)
-        add_data(yaw_plot, "yaw_area", self.strategies)
+        lay_plot = kinematics_fig.add_subplot(2, 3, 1)
+        add_data(lay_plot, category="lay_area", strategies=self.strategies, title="Lateral acceleration", ylabel="Integral of lat. acceleration dt", ylim=[miny, 900])
 
-        jerk_plot = kinematics_fig.add_subplot(2, 3, 4)
-        add_data(jerk_plot, "jerk_area", self.strategies)
+        yaw_plot = kinematics_fig.add_subplot(2, 3, 2)
+        add_data(yaw_plot, category="yaw_area", strategies=self.strategies, title="Yaw rate", ylabel="Integral of yaw rate dt", ylim=[miny, 410])
 
-        lat_jerk_plot = kinematics_fig.add_subplot(2, 3, 5)
-        add_data(lat_jerk_plot, "lat_jerk_area", self.strategies)
+        # jerk_plot = kinematics_fig.add_subplot(2, 3, 4)
+        # add_data(jerk_plot, "jerk_area", self.strategies, title="Mean area under jerk curve")
+
+        lat_jerk_plot = kinematics_fig.add_subplot(2, 3, 3)
+        add_data(lat_jerk_plot, category="lat_jerk_area", strategies=self.strategies, title="Lateral jerk", ylabel="Integral of lat. jerk dt", ylim=[miny, 1800])
 
         ############################################################
         # Plotting normal to objective figure.
-        NTO_fig = plt.figure(figsize=(20, 16))
+        # NTO_fig = plt.figure(figsize=(20, 16))
 
-        NTO_pcm = NTO_fig.add_subplot(2, 3, 1)
-        add_data(NTO_pcm, "NTO_pcm", self.strategies)
+        # NTO_pcm = NTO_fig.add_subplot(2, 3, 1)
+        # add_data(NTO_pcm, "NTO_pcm", self.strategies)
 
-        NTO_frechet = NTO_fig.add_subplot(2, 3, 2)
-        add_data(NTO_frechet, "NTO_frechet", self.strategies)
+        NTO_frechet = kinematics_fig.add_subplot(2, 3, 4)
+        add_data(NTO_frechet, category="NTO_frechet", title="Objective Unfairness", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 1100])
 
-        NTO_area = NTO_fig.add_subplot(2, 3, 3)
-        add_data(NTO_area, "NTO_area", self.strategies)
-
-        NTO_curve = NTO_fig.add_subplot(2, 3, 4)
-        add_data(NTO_curve, "NTO_curve_length", self.strategies)
-
-        NTO_dtw = NTO_fig.add_subplot(2, 3, 5)
-        add_data(NTO_dtw, "NTO_dtw", self.strategies)
+        # NTO_area = NTO_fig.add_subplot(2, 3, 3)
+        # add_data(NTO_area, "NTO_area", self.strategies)
+        #
+        # NTO_curve = NTO_fig.add_subplot(2, 3, 4)
+        # add_data(NTO_curve, "NTO_curve_length", self.strategies)
+        #
+        # NTO_dtw = NTO_fig.add_subplot(2, 3, 5)
+        # add_data(NTO_dtw, "NTO_dtw", self.strategies)
 
         ############################################################
         # Plotting normal to subjective figure.
-        NTS_fig = plt.figure(3, figsize=(20, 16))
-        NTS_pcm = NTS_fig.add_subplot(2, 3, 1)
-        add_data(NTS_pcm, "NTS_pcm", self.strategies)
+        # NTS_fig = plt.figure(3, figsize=(20, 16))
 
-        NTS_frechet = NTS_fig.add_subplot(2, 3, 2)
-        add_data(NTS_frechet, "NTS_frechet", self.strategies)
+        # NTS_pcm = NTS_fig.add_subplot(2, 3, 1)
+        # add_data(NTS_pcm, "NTS_pcm", self.strategies)
 
-        NTS_area = NTS_fig.add_subplot(2, 3, 3)
-        add_data(NTS_area, "NTS_area", self.strategies)
+        NTS_frechet = kinematics_fig.add_subplot(2, 3, 5)
+        add_data(NTS_frechet, category="NTS_frechet", title="Subjective Unfairness", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 310])
 
-        NTS_curve = NTS_fig.add_subplot(2, 3, 4)
-        add_data(NTS_curve, "NTS_curve_length", self.strategies)
-
-        NTS_dtw = NTS_fig.add_subplot(2, 3, 5)
-        add_data(NTS_dtw, "NTS_dtw", self.strategies)
+        # NTS_area = NTS_fig.add_subplot(2, 3, 3)
+        # add_data(NTS_area, "NTS_area", self.strategies)
+        #
+        # NTS_curve = NTS_fig.add_subplot(2, 3, 4)
+        # add_data(NTS_curve, "NTS_curve_length", self.strategies)
+        #
+        # NTS_dtw = NTS_fig.add_subplot(2, 3, 5)
+        # add_data(NTS_dtw, "NTS_dtw", self.strategies)
 
         ############################################################
         # Plotting subjective to objective figure.
-        STO_fig = plt.figure(4, figsize=(20, 16))
-        STO_pcm = STO_fig.add_subplot(2, 3, 1)
-        add_data(STO_pcm, "STO_pcm", self.strategies)
+        # STO_fig = plt.figure(4, figsize=(20, 16))
+        # STO_pcm = STO_fig.add_subplot(2, 3, 1)
+        # add_data(STO_pcm, "STO_pcm", self.strategies)
 
-        STO_frechet = STO_fig.add_subplot(2, 3, 2)
-        add_data(STO_frechet, "STO_frechet", self.strategies)
+        STO_frechet = kinematics_fig.add_subplot(2, 3, 6)
+        add_data(STO_frechet, category="STO_frechet", title="Subjectivity Gap", strategies=self.strategies, ylabel="Fréchet distance (m)", ylim=[miny, 1100])
 
-        STO_area = STO_fig.add_subplot(2, 3, 3)
-        add_data(STO_area, "STO_area", self.strategies)
-
-        STO_curve = STO_fig.add_subplot(2, 3, 4)
-        add_data(STO_curve, "STO_curve_length", self.strategies)
-
-        STO_dtw = STO_fig.add_subplot(2, 3, 5)
-        add_data(STO_dtw, "STO_dtw", self.strategies)
+        # STO_area = STO_fig.add_subplot(2, 3, 3)
+        # add_data(STO_area, "STO_area", self.strategies)
+        #
+        # STO_curve = STO_fig.add_subplot(2, 3, 4)
+        # add_data(STO_curve, "STO_curve_length", self.strategies)
+        #
+        # STO_dtw = STO_fig.add_subplot(2, 3, 5)
+        # add_data(STO_dtw, "STO_dtw", self.strategies)
 
         ############################################################
         # Plotting.
 
+        # qq_fig = plt.figure(5, figsize=(12,12))
+        # qq_plot = STO_fig.add_subplot(2,3,6)
+        # scipy.stats.probplot(self.display_results["STO_frechet"]["ArgStrategy.LEAST_ATTACKERS_PRIVATE"], dist="norm", plot=qq_plot)
+
+        plt.savefig('plots.jpg', dpi=1200)
+        plt.savefig('plots.eps')
+        plt.savefig('plots.pdf')
+        plt.savefig('plots.svg')
         plt.show()
 
     def pre_plot_results(self):
@@ -697,10 +852,11 @@ class ResultsManager:
         # trajectories_plot.set_xlim([first_active_x, last_active_x])
 
         plt.tight_layout()
+        plt.savefig('integral.pdf')
 
         plt.show()
 
-# results = MultiTrialResults(g=30)
+results = MultiTrialResults(g=50)
 
 #
 # def main(argv):

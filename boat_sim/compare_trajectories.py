@@ -11,13 +11,13 @@ strategies = ["ArgStrategy.RANDOM_CHOICE_PRIVATE",
               "ArgStrategy.MOST_ATTACKS_PRIVATE",
               "ArgStrategy.LEAST_ATTACKERS_PRIVATE"]
 
-labels = ['random', 'least_cost', 'most_attacks', 'least_attackers']
+labels = ['random', 'min_cost', 'offensive', 'defensive']
 
 path = "results/experiment97/"
 
-max_g = 30
+max_g = 60
 
-boat_id = "11"
+boat_id = "7"
 
 normal_data = {}
 normal_trajectories = {}
@@ -55,7 +55,7 @@ for strategy in strategies:
 
 load_trajectory(objective_trajectory["x"], objective_trajectory["y"], objective_data)
 
-fig = plt.figure(figsize=(12, 12))
+fig = plt.figure(figsize=(16, 9))
 trajectories_plot = fig.add_subplot(1, 1, 1)
 
 for mode in ["normal", "subjective"]:
@@ -78,9 +78,10 @@ trajectories_plot.set_ylim([0, 1800])
 
 labels = []
 for mode in ["normal", "subjective"]:
-    for strategy in ["random", "least_cost", "most_attacks", "least_attacked"]:
-        labels.append("{}-{}".format(mode, strategy))
+    for strategy in ["random", "min_cost", "offensive", "defensive"]:
+        labels.append("{} {}".format(mode, strategy))
 labels.append("objective")
 
 trajectories_plot.legend(labels)
+plt.savefig('compare_trajectories.pdf')
 plt.show()
