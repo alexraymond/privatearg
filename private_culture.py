@@ -3,19 +3,27 @@ import string
 import re
 import random
 import copy
-
+import logging, sys
+import os
+import numpy as np
 
 from base_culture import Culture
 from functools import partial
 from argument import Argument, PrivateArgument, ArgumentationFramework
 
+DEBUG_FILE = False
+if DEBUG_FILE:
+    LOG_FILENAME = 'debug2.log'
+    if os.path.exists(LOG_FILENAME):
+        os.remove(LOG_FILENAME)
+    logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
 def always_true(*args, **kwargs):
     return True
 
 class RandomCulture(Culture):
-    num_properties = 100
-    num_args = 25
+    num_args = 50
+    num_properties = num_args
     def __init__(self):
         # Properties of the culture with their default values go in self.properties.
         super().__init__()
@@ -24,13 +32,54 @@ class RandomCulture(Culture):
         self.raw_bw_framework = None
 
         self.create_random_properties()
+        # if DEBUG_FILE:
+        #     self.load_framework()
+        # else:
         self.create_arguments()
-        self.define_attacks()
+        # self.define_attacks()
+        self.define_attacks_transitive()
         self.generate_bw_framework()
 
     def create_random_properties(self):
         for i in range(0, self.num_properties):
-            self.properties[i] = 0
+            self.properties[i] = random.randint(0, 1000)
+            # dist = np.random.normal(50.5, 1, 100)
+            # value = random.choice(dist)
+            # self.properties[i] = int(value)
+
+    def load_framework(self):
+        def generate_verifier_function(idx):
+            def verifier_prototype(idx, self_agent, other_agent):
+                return self_agent.properties[idx] > other_agent.properties[idx]
+
+            # idx = random.randrange(1, self.num_properties)
+            return partial(verifier_prototype, idx)
+
+        random_costs = []
+        for i in range(1, 20):
+            random_costs.append(random.randint(1, 20))
+
+        with open('sample2.apx', 'r') as file:
+            lines = file.readlines()
+            for line in lines:
+                if "arg" in line:
+                    arg_id = int(line[line.find("(")+1 : line.find(")")])
+                    new_arg = PrivateArgument(arg_id= arg_id,
+                                              descriptive_text=str(arg_id),
+                                              privacy_cost= 0 if arg_id == 0 else random_costs[int(arg_id/4)])
+                    if arg_id == 0:
+                        new_arg.set_verifier(always_true)
+                    else:
+                        new_arg.set_verifier(generate_verifier_function(idx=new_arg.id()))
+                    self.AF.add_argument(new_arg)
+                if "att" in line:
+                    attack = line[line.find("(")+1 : line.find(")")]
+                    pair = attack.split(",")
+                    attacker = int(pair[0])
+                    attacked = int(pair[1])
+                    self.AF.add_attack(attacker, attacked)
+        # self.argumentation_framework.stats()
+
 
     def create_arguments(self):
         """
@@ -40,7 +89,7 @@ class RandomCulture(Culture):
         args = []
 
         motion = PrivateArgument(arg_id = 0,
-                                 descriptive_text = "We should swap places",
+                                 descriptive_text = "M",
                                  privacy_cost = 0)
 
         motion.set_verifier(always_true)  # Propositional arguments are always valid.
@@ -62,61 +111,184 @@ class RandomCulture(Culture):
             new_arg.set_verifier(generate_verifier_function(idx=new_arg.id()))
             args.append(new_arg)
 
-        self.argumentation_framework.add_arguments(args)
+        self.AF.add_arguments(args)
 
     def define_attacks(self):
         """
         Defines attack relationships present in the culture.
         :return: Attack relationships.
         """
-        num_attacks = self.num_args * 3
+        num_attacks = self.num_args * 8
+        connected = set()
+        connected.add(0)
+        # num_attacks = 12
         for i in range(num_attacks):
             a = b = 0
             while a == b:  # Avoid self-attacks.
                 a = random.randint(1, self.num_args-1)
-                b = random.randint(0, self.num_args-1)
+                b = random.choice(list(connected))
                 # Avoid double arrows.
-                if b in self.argumentation_framework.arguments_that_attack(a):
+                if b in self.AF.arguments_that_attack(a) or b > a:
                     a = b = 0
                     continue
 
-            self.argumentation_framework.add_attack(a, b)
+            self.AF.add_attack(a, b)
+            connected.add(a)
+            connected.add(b)
+
+        for arg_id in self.AF.all_arguments.copy().keys():
+            if arg_id not in connected:
+                self.AF.remove_argument(arg_id)
+        # self.argumentation_framework.make_spanning_graph()
+
+        leaves = set()
+        for id in self.AF.argument_ids():
+            if id not in self.AF.attacked_by().keys():
+                leaves.add(id)
+        # print("Number of maximal arguments before: {}".format(len(leaves)))
+
+        # self.argumentation_framework.stats()
+
+    def define_attacks_transitive(self, ensure_single_winner=True):
+        """
+        Defines attack relationships present in the culture.
+        :return: Attack relationships.
+        """
+
+        def replicate_attacks(a, to_visit, visited):
+            while to_visit:
+                # print("Propagating attacks from {} to others".format(b))
+                current_arg = to_visit.pop()
+                # print("What about {}?".format(current_arg))
+                if current_arg in visited:
+                    # print("{} has been visited already.".format(current_arg))
+                    continue
+                if current_arg in self.AF.arguments_that_attack(a):
+                    # print("{} already attacks {}!".format(current_arg, a))
+                    continue
+                # print("Adding propagated attack: {} attacks {}".format(a, current_arg))
+                if a > current_arg:
+                    self.AF.add_attack(a, current_arg)
+                # print("State of AF: {}".format(self.argumentation_framework.attacks()))
+                # print("Expanding list with {}".format(to_visit.union(self.argumentation_framework.arguments_attacked_by(current_arg))))
+                to_visit.update(self.AF.arguments_attacked_by(current_arg))
+                visited.add(current_arg)
+
+
+        # print("\n\n\nGENERATING ATTACKS!")
+        num_attacks = self.num_args * 8
+        connected = set()
+        connected.add(0)
+        # num_attacks = 12
+        for i in range(num_attacks):
+            a = b = 0
+            while a == b:  # Avoid self-attacks.
+                a = random.randint(1, self.num_args-1)
+                b = random.choice(list(connected))
+                # Avoid double arrows.
+                if b in self.AF.arguments_that_attack(a) or b > a:
+                    a = b = 0
+                    continue
+            # if b not in self.argumentation_framework.arguments_attacked_by(a):
+            #     print("{} attacks {}".format(a, b))
+            self.AF.add_attack(a, b)
+            # print("State of AF: {}".format(self.argumentation_framework.attacks()))
+            connected.add(a)
+            connected.add(b)
+
+            # Replicate attacks recursively
+            to_visit = self.AF.arguments_attacked_by(b).copy()
+            visited = set()
+
+            replicate_attacks(a, to_visit, visited)
+
+
+        for arg_id in self.AF.all_arguments.copy().keys():
+            if arg_id not in connected:
+                # print("\nREMOVING ARGUMENT {}\n".format(arg_id))
+                self.AF.remove_argument(arg_id)
+        # self.argumentation_framework.make_spanning_graph()
+
+        leaves = set()
+        for id in self.AF.argument_ids():
+            if id not in self.AF.attacked_by().keys():
+                leaves.add(id)
+        print("Number of maximal arguments before: {}".format(len(leaves)))
+        # if len(leaves) > 1 and ensure_single_winner == True:
+        #     final_leaf = max(leaves)
+        #     for leaf in leaves:
+        #         if leaf == final_leaf:
+        #             continue
+        #         to_visit = self.argumentation_framework.arguments_attacked_by(leaf).copy()
+        #         visited = set()
+        #         self.argumentation_framework.add_attack(final_leaf, leaf)
+        #         replicate_attacks(final_leaf, to_visit, visited)
+        # self.argumentation_framework.stats()
+
 
     def generate_bw_framework(self):
         """
         This function generates and populates a black-and-white framework (forced bipartition) from an existing culture.
         A black-and-white framework is built with the following rules:
-        1. Every argument is represented by 2 nodes, black and white.
+        1. Every argument is represented by 4 nodes, black and white X hypothesis and verified.
         2. Every attack between arguments is reconstructed between nodes of different colours.
         :return: A flat black-and-white framework.
         """
         self.raw_bw_framework = ArgumentationFramework()
-        for argument in self.argumentation_framework.arguments():
+        for argument in self.AF.arguments():
             # Even indices for defender, odd for challenger.
-            black_argument = PrivateArgument(arg_id = argument.id() * 2,
-                                             descriptive_text = "b" + str(argument.id()),
-                                             privacy_cost = argument.privacy_cost)
-            black_argument.set_verifier(argument.verifier())
-            white_argument = PrivateArgument(arg_id = argument.id() * 2 + 1,
-                                             descriptive_text = "w" + str(argument.id()),
-                                             privacy_cost = argument.privacy_cost)
-            white_argument.set_verifier(argument.verifier())
-            self.raw_bw_framework.add_arguments([black_argument, white_argument])
+            # Adding hypothetical arguments.
+            black_hypothesis = PrivateArgument(arg_id = argument.id() * 4,
+                                               descriptive_text = argument.hypothesis_text,
+                                               privacy_cost = argument.privacy_cost)
+            white_hypothesis = PrivateArgument(arg_id = argument.id() * 4 + 1,
+                                               descriptive_text = argument.hypothesis_text,
+                                               privacy_cost = argument.privacy_cost)
+            h_verifier = argument.hypothesis_verifier if argument.hypothesis_verifier else always_true
+            black_hypothesis.set_verifier(h_verifier)
+            white_hypothesis.set_verifier(h_verifier)
 
-            # Adding mutual attacks.
-            # self.raw_bw_framework.add_attack(black_argument.id(), white_argument.id())
-            # self.raw_bw_framework.add_attack(white_argument.id(), black_argument.id())
+            # Adding verified arguments.
+            black_verified = PrivateArgument(arg_id=argument.id() * 4 + 2,
+                                             descriptive_text=argument.verified_fact_text,
+                                             privacy_cost=argument.privacy_cost)
+            white_verified = PrivateArgument(arg_id=argument.id() * 4 + 3,
+                                             descriptive_text=argument.verified_fact_text,
+                                             privacy_cost=argument.privacy_cost)
+            f_verifier = argument.fact_verifier if argument.fact_verifier else argument.verifier()
+            black_verified.set_verifier(f_verifier)
+            white_verified.set_verifier(f_verifier)
 
-        for attacker_id, attacked_set in self.argumentation_framework.attacks().items():
-            black_attacker_id = attacker_id * 2
-            white_attacker_id = attacker_id * 2 + 1
+            self.raw_bw_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
+
+            # Adding mutual attacks between contradictory hypotheses.
+            self.raw_bw_framework.add_attack(black_hypothesis.id(), white_hypothesis.id())
+            self.raw_bw_framework.add_attack(white_hypothesis.id(), black_hypothesis.id())
+
+            # Adding mutual attacks between contradictory verified arguments.
+            self.raw_bw_framework.add_attack(black_verified.id(), white_verified.id())
+            self.raw_bw_framework.add_attack(white_verified.id(), black_verified.id())
+
+            # Adding attacks between immediate verified and hypothetical arguments.
+            self.raw_bw_framework.add_attack(black_verified.id(), white_hypothesis.id())
+            self.raw_bw_framework.add_attack(white_verified.id(), black_hypothesis.id())
+
+        # Adding attacks between different arguments in original framework.
+        # Each hypothesis attacks both the attacked hypothesis and verified arguments.
+        for attacker_id, attacked_set in self.AF.attacks().items():
+            black_hypothesis_attacker_id = attacker_id * 4
+            white_hypothesis_attacker_id = attacker_id * 4 + 1
 
             # Reproducing previous attacks, crossing between black and white nodes.
             for attacked_id in attacked_set:
-                black_attacked_id = attacked_id * 2
-                white_attacked_id = attacked_id * 2 + 1
-                self.raw_bw_framework.add_attack(black_attacker_id, white_attacked_id)
-                self.raw_bw_framework.add_attack(white_attacker_id, black_attacked_id)
+                black_hypothesis_attacked_id = attacked_id * 4
+                white_hypothesis_attacked_id = attacked_id * 4 + 1
+                black_verified_attacked_id = attacked_id * 4 + 2
+                white_verified_attacked_id = attacked_id * 4 + 3
+                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_hypothesis_attacked_id)
+                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_verified_attacked_id)
+                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_hypothesis_attacked_id)
+                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_verified_attacked_id)
 
 
 

@@ -6,63 +6,273 @@ import copy
 import scipy.stats as stats
 import logging, sys
 import numpy as np
-from enum import Enum
+import os
+import subprocess
+import json
+from multiprocessing.pool import ThreadPool
+
+from utils import *
+from enum import Enum, IntEnum
 from private_culture import RandomCulture
+from boat_culture import BoatCulture
+from agent import Agent
+from boat_agent import BoatAgent
 
-class Agent:
-    def __init__(self, id, max_privacy_budget = 10):
-        self.id = id
-        self.properties = {}
-        self.culture = None
-        self.max_privacy_budget = max_privacy_budget
-        self.privacy_budget = self.max_privacy_budget
-        self.argued_with = []
-        self.unfair_perception_score = 0
 
-    def reset_privacy_budget(self):
-        self.privacy_budget = self.max_privacy_budget
 
-    def set_culture(self, culture):
-        self.culture = culture
-        self.properties = self.culture.properties.copy()
 
-        # Randomise values for random culture.
-        if isinstance(self.culture, RandomCulture):
-            for key, value in self.properties.items():
-                self.properties[key] = random.randint(0, 1000)
-
-    def has_argued_with(self, agent_id):
-        return agent_id in self.argued_with
-
-class ArgumentationStrategy(Enum):
+class ArgStrategy(Enum):
     RANDOM_CHOICE_NO_PRIVACY = 1
-    RANDOM_CHOICE_WITH_PRIVACY = 2
-    GREEDY_MIN_PRIVACY = 3
-    COUNT_OCCURRENCES_ADMISSIBLE = 4
-    ALL_ARGS = 5
+    RANDOM_CHOICE_PRIVATE = 2
+    LEAST_COST_PRIVATE = 3
+    LEAST_ATTACKERS_PRIVATE = 4
+    LEAST_ATTACKERS_NO_PRIVACY = 5
+    COUNT_OCCURRENCES_ADMISSIBLE_RELATIVE = 6
+    ALL_ARGS = 7
+    MOST_ATTACKS_PRIVATE = 8
+    MOST_ATTACKS_NO_PRIVACY = 9
+    LEAST_COST_NO_PRIVACY = 10
+
 
 class AgentQueue:
-    def __init__(self, strategy: ArgumentationStrategy, size = 30, privacy_budget = 10):
+    TOTAL_YES = 0
+    TOTAL_NO = 0
+    TOTAL_BAD = 0
+
+    def __init__(self, strategy: ArgStrategy, culture=None, size=30, privacy_budget=10):
         self.queue = []
         self.size = size
-        self.culture = RandomCulture()
+        self.culture = RandomCulture() if culture is None else copy.deepcopy(culture)
         self.init_queue(privacy_budget)
         self.strategy = strategy
+        self.bw_framework = None
+        self.rate_local_unfairness = 0
+        self.string = ""
+
+    def set_privacy_budget(self, privacy_budget):
+        for agent in self.queue:
+            agent.set_max_privacy_budget(privacy_budget)
 
     def set_strategy(self, strategy):
         self.strategy = strategy
 
     def init_queue(self, privacy_budget):
         for i in range(self.size):
-            new_agent = Agent(i, max_privacy_budget=privacy_budget)
-            new_agent.set_culture(self.culture)
-            self.queue.append(new_agent)
+            if type(self.culture) is BoatCulture:
+                new_boat = BoatAgent(i, max_privacy_budget=privacy_budget)
+                new_boat.set_culture(self.culture)
+                self.culture.initialise_random_agent(new_boat)
+                self.queue.append(new_boat)
+            else:
+                new_agent = Agent(i, max_privacy_budget=privacy_budget)
+                new_agent.set_culture(self.culture)
+                self.queue.append(new_agent)
+
+    def results_to_dict(self):
+        data = {}
+        data["size"] = self.size
+        data["strategy"] = str(self.strategy)
+        data["agents"] = {}
+        for agent in self.queue:
+            data["agents"][agent.id] = agent.results_to_dict()
+        return data
+
+    def agents_to_dict(self):
+        data = {}
+        for agent in self.queue:
+            data[agent.id] = agent.properties_to_dict()
+        return data
 
     def queue_string(self):
         text = ""
         for agent in self.queue:
             text += str(agent.id) + " "
         return text
+
+    def compute_ground_truth(self, debug=False):
+        """
+        Computes the ground truth by removing all unverified arguments from BW framework
+        and calculating skeptical acceptance of motion.
+        :return: Sorted ground truth.
+        """
+        ground_truth = copy.deepcopy(self)
+        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        if debug:
+            print("BASE BW FRAMEWORK:\n{}".format(ground_truth.bw_framework))
+        status_quo = {}
+        for i in range(0, len(ground_truth.queue)):
+            for j in range(0, len(ground_truth.queue)):
+                if i == j:
+                    continue
+                defender = ground_truth.queue[i]
+                challenger = ground_truth.queue[j]
+                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+
+                to_remove = []
+                for argument_id in bw_framework.all_arguments:
+                    argument_obj = bw_framework.argument(argument_id)
+                    if is_black_arg(argument_id):
+                        verified = argument_obj.verify(defender, challenger)
+                    else:
+                        verified = argument_obj.verify(challenger, defender)
+                    if not verified:
+                        to_remove.append(argument_id)
+                        # if is_verified_arg(argument_id):
+                        #     to_remove.append(argument_id - 2)
+
+                for argument_id in to_remove:
+                    bw_framework.remove_argument(argument_id)
+
+                solver_result = bw_framework.run_solver(semantics="DS-PR", arg_str="1")
+                pair = (defender.id, challenger.id)
+                if "YES" in solver_result:
+                    # Challenger wins.
+                    attackers_of_1 = bw_framework.arguments_that_attack(1)
+
+                    anti_pair = (challenger.id, defender.id)
+                    self.TOTAL_YES += 1
+                    logging.debug(
+                        "DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, challenger.id))
+                    status_quo[pair] = False
+                elif "NO" in solver_result:
+                    # Defender wins.
+                    attackers_of_1 = bw_framework.arguments_that_attack(1)
+                    # pair = (challenger.id, defender.id)
+                    anti_pair = (defender.id, challenger.id)
+                    self.TOTAL_NO += 1
+                    logging.debug(
+                        "DEFENDER {} vs CHALLENGER {}:\nWINNER: {}".format(defender.id, challenger.id, defender.id))
+                    status_quo[pair] = True
+                else:
+                    print("Error computing extensions")
+
+                # logging.debug("FRAMEWORK FOR PAIR B{} W{}:".format(defender.id, challenger.id))
+                # logging.debug(bw_framework.to_aspartix_text())
+                # status_quo[pair] = False
+                # status_quo[anti_pair] = True
+
+        # Get queue order.
+        swaps = ground_truth.interact_all(gt_result=status_quo)
+        print("Ground truth: {}".format(ground_truth.queue_string()))
+        print("GT Swaps: {}".format(swaps))
+        print("Total yes: {}\nTotal no: {}".format(self.TOTAL_YES, self.TOTAL_NO))
+        return ground_truth, self.TOTAL_YES, swaps, status_quo
+
+    def compute_ground_truth_matrix(self):
+        """
+        Computes the ground truth by removing all unverified arguments from BW framework
+        and calculating skeptical acceptance of motion.
+        :return: Sorted ground truth.
+        """
+        ground_truth = copy.deepcopy(self)
+        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        winners = {}
+        for i in range(0, len(ground_truth.queue)):
+            for j in range(0, len(ground_truth.queue)):
+                if i == j:
+                    continue
+                defender = ground_truth.queue[i]
+                challenger = ground_truth.queue[j]
+                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+
+                to_remove = []
+                for argument_id in bw_framework.all_arguments:
+                    argument_obj = bw_framework.argument(argument_id)
+                    if is_black_arg(argument_id):
+                        verified = argument_obj.verify(defender, challenger)
+                    else:
+                        verified = argument_obj.verify(challenger, defender)
+                    if not verified:
+                        to_remove.append(argument_id)
+                        # if is_verified_arg(argument_id):
+                        #     to_remove.append(argument_id - 2)
+
+                for argument_id in to_remove:
+                    bw_framework.remove_argument(argument_id)
+
+                solver_result = bw_framework.run_solver(semantics="DS-PR", arg_str="1")
+                if "YES" in solver_result:
+                    # Challenger wins.
+                    winners[(defender.id, challenger.id)] = challenger.id
+                    self.TOTAL_YES += 1
+                elif "NO" in solver_result:
+                    # Defender wins.
+                    winners[(defender.id, challenger.id)] = defender.id
+                    self.TOTAL_NO += 1
+                else:
+                    print("Error computing extensions")
+
+        return winners
+
+    def compute_ground_truth_matrix_parallel(self):
+        """
+        Computes the ground truth by removing all unverified arguments from BW framework
+        and calculating skeptical acceptance of motion.
+        :return: Sorted ground truth.
+        """
+        ground_truth = copy.deepcopy(self)
+        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        winners = {}
+        pairs = []
+        for i in range(0, len(ground_truth.queue)):
+            for j in range(0, len(ground_truth.queue)):
+                if i == j:
+                    continue
+                defender = ground_truth.queue[i]
+                challenger = ground_truth.queue[j]
+                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+
+                to_remove = []
+                for argument_id in bw_framework.all_arguments:
+                    argument_obj = bw_framework.argument(argument_id)
+                    if is_black_arg(argument_id):
+                        verified = argument_obj.verify(defender, challenger)
+                    else:
+                        verified = argument_obj.verify(challenger, defender)
+                    if not verified:
+                        to_remove.append(argument_id)
+                        # if is_verified_arg(argument_id):
+                        #     to_remove.append(argument_id - 2)
+
+                for argument_id in to_remove:
+                    bw_framework.remove_argument(argument_id)
+
+                filename = "temp_frameworks/{}-{}.apx".format(defender.id, challenger.id)
+                with open(filename, 'w') as file:
+                    file.write(bw_framework.to_aspartix_id())
+                pairs.append((defender.id, challenger.id))
+
+        def run_solver_detached(pair):
+            defender, challenger = pair
+            filename = "temp_frameworks/{}-{}.apx".format(defender, challenger)
+            solver_location = "mu-toksia/mu-toksia.exe"
+            semantics = "DS-PR"
+            arg_str = "1"
+            result = subprocess.run([solver_location, "-p", semantics, "-fo", "apx", "-f", filename,
+                                     "-a", arg_str],
+                                    capture_output=True, text=True)
+            return result.stdout
+
+        thread_pool = ThreadPool()
+        solver_results = thread_pool.map(run_solver_detached, pairs)
+        thread_pool.close()
+        thread_pool.join()
+        results = list(zip(solver_results, pairs))
+
+        for result in results:
+            solver_result, (defender, challenger) = result
+            if "YES" in solver_result:
+                # Challenger wins.
+                winners[(defender, challenger)] = challenger
+                self.TOTAL_YES += 1
+            elif "NO" in solver_result:
+                # Defender wins.
+                winners[(defender, challenger)] = defender
+                self.TOTAL_NO += 1
+            else:
+                print("Error computing extensions")
+
+        return winners
 
     def relative_queue(self, ground_truth):
         """
@@ -76,16 +286,46 @@ class AgentQueue:
         i = 0
         for agent in ground_truth.queue:
             base_dict[agent.id] = i
-            i += 1
             ground_truth_ids.append(i)
+            i += 1
         text = ""
         for agent in self.queue:
-            text += str(base_dict[agent.id]) + " "
+            # text += str(base_dict[agent.id]) + " "
+            text += str(agent.id) + " "
             relative_ids.append(base_dict[agent.id])
         tau, p = stats.kendalltau(ground_truth_ids, relative_ids)
-        return text, tau, p
+        return self.queue_string(), tau, p
 
-    def interact_all(self):
+    def interact_all_matrix(self):
+        logging.debug(self.queue_string())
+        self.bw_framework = self.create_bw_framework()
+        interaction_count = 0
+        winners = {}
+
+        for i in range(0, self.size):
+            for j in range(0, self.size):
+                if i == j:
+                    continue
+                defender = self.queue[i]
+                challenger = self.queue[j]
+                # if defender.has_argued_with(challenger):
+                #     return True
+
+                status_quo, considered_unfair, privacy_cost = self.interact_pair(self.queue[i], self.queue[j])
+                winner = defender.id if status_quo else challenger.id
+                pair = (defender, challenger)
+                defender.add_result(pair, privacy_cost, winner, considered_unfair)
+                challenger.add_result(pair, privacy_cost, winner, considered_unfair)
+                winners[(defender.id, challenger.id)] = winner
+                interaction_count += 1
+
+        aggregate_local_unfairness = 0
+        for agent in self.queue:
+            aggregate_local_unfairness += agent.unfair_perception_score
+        self.rate_local_unfairness = aggregate_local_unfairness / interaction_count
+        return winners
+
+    def interact_all(self, gt_result=None):
         """
         Agents will interact with their neighbours.
         Considering the queue ordering, every agent will attempt to move towards index 0.
@@ -99,6 +339,9 @@ class AgentQueue:
 
         logging.debug(self.queue_string())
         stable_queue = False
+        self.bw_framework = self.create_bw_framework()
+        interaction_count = 0
+        swaps = 0
         while not stable_queue:
             stable_queue = True
 
@@ -107,14 +350,25 @@ class AgentQueue:
                     i += scan
                     if i >= len(self.queue):
                         break
-                    status_quo = self.interact_pair(self.queue[i-1], self.queue[i])
+                    if gt_result is None:
+                        status_quo = self.interact_pair(self.queue[i - 1], self.queue[i])
+                    else:
+                        status_quo = gt_result[self.queue[i - 1].id, self.queue[i].id]
+                    interaction_count += 1
                     if not status_quo:
                         # Then swap.
-                        self.queue[i-1], self.queue[i] = self.queue[i], self.queue[i-1]
+                        self.queue[i - 1], self.queue[i] = self.queue[i], self.queue[i - 1]
+                        swaps += 1
                         stable_queue = False
                     logging.debug(self.queue_string())
+        aggregate_local_unfairness = 0
+        for agent in self.queue:
+            aggregate_local_unfairness += agent.unfair_perception_score
+        self.rate_local_unfairness = aggregate_local_unfairness / interaction_count
+        self.string = self.queue_string()
+        return swaps
 
-    def create_bw_framework(self, defender, challenger):
+    def create_bw_framework(self):
         """
         Prunes unverified arguments out of a black-and-white framework.
         :param defender: Agent representing black arguments.
@@ -125,65 +379,34 @@ class AgentQueue:
 
         # Delete defender's motion since challenger always proposes motion.
         bw_framework.remove_argument(0)
+        # Delete motion verifiers.
+        bw_framework.remove_argument(2)
+        bw_framework.remove_argument(3)
 
-        black_unverified = []
-        white_unverified = []
-        for argument_obj in self.culture.argumentation_framework.arguments():
-            if not argument_obj.verify(defender, challenger):
-                # Unverified by black.
-                black_unverified.append(argument_obj.id())
-            if not argument_obj.verify(challenger, defender):
-                # Unverified by white.
-                white_unverified.append(argument_obj.id())
+        bw_framework.rank_least_attacked_arguments()
+        bw_framework.rank_strongest_attacker_arguments()
 
-        for argument_id in black_unverified:
-            black_id = argument_id * 2
-            bw_framework.remove_argument(black_id)
+        # bw_framework.compute_rank_arguments_occurrence()
 
-        for argument_id in white_unverified:
-            white_id = argument_id * 2 + 1
-            bw_framework.remove_argument(white_id)
+        # black_unverified = []
+        # white_unverified = []
+        # for argument_obj in self.culture.argumentation_framework.arguments():
+        #     if not argument_obj.verify(defender, challenger):
+        #         # Unverified by black.
+        #         black_unverified.append(argument_obj.id())
+        #     if not argument_obj.verify(challenger, defender):
+        #         # Unverified by white.
+        #         white_unverified.append(argument_obj.id())
+        #
+        # for argument_id in black_unverified:
+        #     black_id = argument_id * 4
+        #     bw_framework.remove_argument(black_id)
+        #
+        # for argument_id in white_unverified:
+        #     white_id = argument_id * 4 + 1
+        #     bw_framework.remove_argument(white_id)
 
         return bw_framework
-
-    def rank_bw_arguments_occurrence(self, bw_framework, extension="admissible"):
-        """
-        Calls ConArg as an external process to compute extensions.
-        Returns a normalised "argument strength" value denoted by occurrences/num_extensions.
-        :param bw_framework: The black-and-white framework.
-        :param extension: The type of extension to be considered.
-        :return: Argument strengths as percentage of occurrence.
-        """
-        with open('sample.af',  'w') as file:
-            file.write(bw_framework.to_aspartix())
-
-        # subprocess.run(["conarg_x64/conarg2", "-w dung", "-e admissible", "-c 4", "sample.af"])
-        result = subprocess.run(["conarg_x64/conarg2", "-w dung", "-e " + extension, "sample.af"],
-                                 capture_output=True, text=True)
-        result_string = result.stdout
-        p = re.compile(r'\"[ *\d+]*\S\"')
-        match = re.findall(r'\"[ *\d+]*\S\"', result_string)
-        num_args = len(bw_framework.arguments())
-        occurrences = {}
-        for argument_obj in bw_framework.arguments():
-            occurrences[argument_obj.id()] = 0
-        for m in match:
-            m = m.replace("\"", "")
-            for argument_obj in bw_framework.arguments():
-                arg_id = argument_obj.id()
-                if str(arg_id) in m:
-                    occurrences[arg_id] += 1
-        num_extensions = len(match)
-
-        # sorted_occurrences = {id: rank for id, rank in sorted(occurrences.items(),
-        #                                                       key = lambda item: item[1],
-        #                                                       reverse = True)}
-
-        argument_strength = {}
-        for id, count in occurrences.items():
-            argument_strength[id] = count / num_extensions
-
-        return argument_strength
 
     def interact_pair(self, defender: Agent, challenger: Agent):
         """
@@ -193,15 +416,23 @@ class AgentQueue:
         :return: True if status quo maintained or agents already interacted. False otherwise.
         """
 
-        if defender.has_argued_with(challenger):
-            return True
+        # FIXME: Should this be removed?
+        # if defender.has_argued_with(challenger):
+        #     return True
 
         logging.debug("#####################")
         logging.debug("Agent {} (defender) vs Agent {} (challenger)".format(defender.id, challenger.id))
+        logging.debug("PROPERTIES:\n")
+        for property in self.culture.properties.keys():
+            if type(property) == str:
+                logging.debug("Property[{}]: {}  vs.  {}".format(str(property), getattr(defender, property),
+                                                                 getattr(challenger, property)))
+            else:
+                logging.debug("Property[{}]: {}  vs.  {}".format(str(property), defender.properties[property],
+                                                                 challenger.properties[property]))
 
-        if self.strategy == ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE:
-            # Black = defender. White = challenger.
-            bw_framework = self.create_bw_framework(defender, challenger)
+        # Black = defender. White = challenger.
+        # bw_framework = self.create_bw_framework(defender, challenger)
 
         defender.argued_with.append(challenger)
         challenger.argued_with.append(defender)
@@ -209,9 +440,10 @@ class AgentQueue:
         defender.reset_privacy_budget()
         challenger.reset_privacy_budget()
 
-        # Game starts with challenger agent proposing argument 0 ("We should swap places").
-        used_arguments   = {defender: [], challenger: [0]}
-        privacy_budget  = {defender: defender.privacy_budget, challenger: challenger.privacy_budget}
+        # Game starts with challenger agent proposing argument 1 ("We should swap places").
+        used_arguments = {defender: [], challenger: [1]}
+        last_argument = {defender: [], challenger: [1]}
+        privacy_budget = {defender: defender.privacy_budget, challenger: challenger.privacy_budget}
 
         logging.debug("Agent {} uses argument 0".format(challenger.id))
 
@@ -220,37 +452,45 @@ class AgentQueue:
 
         game_over = False
         winner = None
+        considered_unfair = False
         while not game_over:
             if turn % 2:
                 # Defender's turn.
-                player   = defender
+                player = defender
                 opponent = challenger
             else:
                 # Challenger's turn.
-                player   = challenger
+                player = challenger
                 opponent = defender
             logging.debug("TURN {}: Agent {}'s turn".format(turn, player.id))
+            logging.debug(
+                "Privacy budgets: Agent {}: {}  | Agent {}: {}".format(defender.id, privacy_budget[defender],
+                                                                       challenger.id, privacy_budget[challenger]))
 
-            unverified_argument_ids = player.culture.arguments_that_attack_list(used_arguments[opponent])
             # Remove previously used arguments.
             all_used_arguments = used_arguments[player] + used_arguments[opponent]
             forbidden_arguments = set(all_used_arguments)
             # Cannot pick argument that is attacked by previously used argument.
-            forbidden_arguments.update(player.culture.arguments_attacked_by_list(used_arguments[opponent]))
+            forbidden_arguments.update(self.bw_framework.arguments_attacked_by_list(all_used_arguments))
+            unverified_argument_ids = self.bw_framework.arguments_that_attack(last_argument[opponent])
             unverified_argument_ids = unverified_argument_ids.difference(forbidden_arguments)
-            logging.debug("Possible attackers to arguments {}: {}".format(used_arguments[opponent], unverified_argument_ids))
-            verified_argument_ids   = []
+            if self.strategy != ArgStrategy.ALL_ARGS:
+                logging.debug(
+                    "Possible attackers to argument {}: {}".format(last_argument[opponent], unverified_argument_ids))
+            verified_argument_ids = []
             for argument_id in unverified_argument_ids:
-                argument_obj = self.culture.argumentation_framework.argument(argument_id)
+                argument_obj = self.bw_framework.argument(argument_id)
                 # We will verify each argument using their respective verifier function.
-
-                if argument_obj.verify(player, opponent):
-                    verified_argument_ids.append(argument_id)
+                if (player == defender and is_black_arg(argument_id)) or \
+                        (player == challenger and is_white_arg(argument_id)):
+                    if argument_obj.verify(player, opponent):
+                        verified_argument_ids.append(argument_id)
 
             # No local unfairness here. Agent had no counter-argument, regardless of privacy budget.
             if not verified_argument_ids:
                 game_over = True
-                winner    = opponent
+                winner = opponent
+                logging.debug("Agent {} cannot verify any argument!".format(player.id))
                 logging.debug("Agent {} wins!".format(winner.id))
                 logging.debug("Used arguments: {}".format(used_arguments[winner]))
                 break
@@ -258,88 +498,207 @@ class AgentQueue:
             logging.debug("Agent {} verified arguments {}".format(player.id, verified_argument_ids))
 
             affordable_argument_ids = []
+            affordable_str = "Affordable arguments cost: "
             for argument_id in verified_argument_ids:
-                argument_obj = self.culture.argumentation_framework.argument(argument_id)
-                if argument_obj.privacy_cost < privacy_budget[player]:
-                    affordable_argument_ids.append(argument_id)
+                argument_obj = self.bw_framework.argument(argument_id)
+                if argument_obj.privacy_cost <= privacy_budget[player]:
+                    player_is_defender = (player == defender)
+                    if player_is_defender and is_black_arg(
+                            argument_id):  # Black agent. Only even arguments are considered.
+                        affordable_argument_ids.append(argument_id)
+                    elif (not player_is_defender) and is_white_arg(
+                            argument_id):  # White agent. Only odd arguments are considered.
+                        affordable_argument_ids.append(argument_id)
+                    affordable_str += "arg {}: {} | ".format(argument_id, argument_obj.privacy_cost)
+            logging.debug(affordable_str)
 
             # If there are no affordable arguments, player loses and local unfairness increases.
 
-            if self.strategy == ArgumentationStrategy.RANDOM_CHOICE_WITH_PRIVACY:
+            if self.strategy == ArgStrategy.RANDOM_CHOICE_PRIVATE:
                 if not affordable_argument_ids:
                     game_over = True
                     winner = opponent
                     player.unfair_perception_score += 1
+                    considered_unfair = True
+                    logging.debug("Agent {} cannot afford any argument!".format(player.id))
+                    logging.debug("Agent {} wins!".format(winner.id))
+                    logging.debug("Used arguments: {}".format(used_arguments[winner]))
                     break
                 # Random choice within privacy budget.
                 rebuttal_id = random.choice(affordable_argument_ids)
-                logging.debug("Agent {} chose argument {}".format(player.id, rebuttal_id))
+                logging.debug("Agent {} randomly chose argument {}".format(player.id, rebuttal_id))
+                last_argument[player] = [rebuttal_id]
                 used_arguments[player].append(rebuttal_id)
-                rebuttal_obj = self.culture.argumentation_framework.argument(rebuttal_id)
+                rebuttal_obj = self.bw_framework.argument(rebuttal_id)
+                # print("Agent {}: {}".format(player.id, rebuttal_obj.descriptive_text))
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
-            elif self.strategy == ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY:
+            elif self.strategy == ArgStrategy.RANDOM_CHOICE_NO_PRIVACY:
                 # Random choice within verified arguments.
                 rebuttal_id = random.choice(verified_argument_ids)
-                logging.debug("Agent {} chose argument {}".format(player.id, rebuttal_id))
+                logging.debug("Agent {} randomly chose argument {}".format(player.id, rebuttal_id))
+                last_argument[player] = [rebuttal_id]
                 used_arguments[player].append(rebuttal_id)
 
-            elif self.strategy == ArgumentationStrategy.GREEDY_MIN_PRIVACY:
+            elif self.strategy == ArgStrategy.LEAST_COST_PRIVATE:
                 # FIXME: Remove duplication.
                 if not affordable_argument_ids:
                     game_over = True
                     winner = opponent
                     player.unfair_perception_score += 1
+                    considered_unfair = True
+                    logging.debug("Agent {} cannot afford any argument!".format(player.id))
+                    logging.debug("Agent {} wins!".format(winner.id))
+                    logging.debug("Used arguments: {}".format(used_arguments[winner]))
                     break
                 # Deterministic choice with cheaper arguments first.
-                cheaper_argument_obj = self.culture.argumentation_framework.argument(affordable_argument_ids[0])
+                cheaper_argument_obj = self.bw_framework.argument(affordable_argument_ids[0])
                 for arg_id in affordable_argument_ids:
-                    arg_obj = self.culture.argumentation_framework.argument(arg_id)
+                    arg_obj = self.bw_framework.argument(arg_id)
                     if arg_obj.privacy_cost < cheaper_argument_obj.privacy_cost:
                         cheaper_argument_obj = arg_obj
-                used_arguments[player].append(cheaper_argument_obj.id)
+                last_argument[player] = [cheaper_argument_obj.id()]
+                logging.debug("Agent {} chose cheapest argument {}".format(player.id, last_argument[player]))
+                used_arguments[player].append(cheaper_argument_obj.id())
                 privacy_budget[player] -= cheaper_argument_obj.privacy_cost
 
-            elif self.strategy == ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE:
+            elif self.strategy == ArgStrategy.LEAST_COST_NO_PRIVACY:
+                # Deterministic choice with cheaper arguments first.
+                cheaper_argument_obj = self.bw_framework.argument(verified_argument_ids[0])
+                for arg_id in verified_argument_ids:
+                    arg_obj = self.bw_framework.argument(arg_id)
+                    if arg_obj.privacy_cost < cheaper_argument_obj.privacy_cost:
+                        cheaper_argument_obj = arg_obj
+                last_argument[player] = [cheaper_argument_obj.id()]
+                logging.debug("Agent {} chose cheapest argument {}".format(player.id, last_argument[player]))
+                used_arguments[player].append(cheaper_argument_obj.id())
+
+            elif self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
                 if not affordable_argument_ids:
                     game_over = True
                     winner = opponent
                     player.unfair_perception_score += 1
+                    considered_unfair = True
+                    logging.debug("Agent {} cannot afford any argument!".format(player.id))
+                    logging.debug("Agent {} wins!".format(winner.id))
+                    logging.debug("Used arguments: {}".format(used_arguments[winner]))
                     break
-                argument_strength = self.rank_bw_arguments_occurrence(bw_framework)
-                min_strength = min(argument_strength.values())
-                max_strength = max(argument_strength.values())
-                strength_per_cost = {}
-                for arg_id, strength in argument_strength.items():
-                    privacy_cost = bw_framework.argument(arg_id).privacy_cost
-                    if privacy_cost == 0:
-                        privacy_cost = 1
-                    normalised_strength = ((strength - min_strength) / (max_strength - min_strength)) * 20
-                    strength_per_cost[arg_id] = normalised_strength / privacy_cost
-                argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
-                relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
+                # argument_strength = self.bw_framework.argument_strength
+                # min_strength = min(argument_strength.values())
+                # max_strength = max(argument_strength.values())
+                # if min_strength == max_strength:
+                #     max_strength = 2
+                #     min_strength = 1
+                # strength_per_cost = {}
+                # for arg_id, strength in argument_strength.items():
+                #     privacy_cost = self.bw_framework.argument(arg_id).privacy_cost
+                #     if privacy_cost == 0:
+                #         privacy_cost = 1
+                #     normalised_strength = ((strength - min_strength) / (max_strength - min_strength)) * 20
+                #     strength_per_cost[arg_id] = normalised_strength / privacy_cost
+                # argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
+                # relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
+                # if self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
+                # ranking = argument_desc_rank
+                # pass
+                # else:
+                #     ranking = relative_desc_rank
 
-                player_is_defender = (player == defender)
+                ranking = self.bw_framework.least_attacked
                 rebuttal_id = -1
                 bw_argument_id = -1
-                for bw_argument_id in relative_desc_rank:
-                    if player_is_defender: # Black agent. Only even arguments are considered.
-                        if bw_argument_id % 2 == 0 and int(bw_argument_id / 2) in affordable_argument_ids:
-                            break
-                    else: # White agent. Only odd arguments are considered.
-                        if bw_argument_id % 2 and int(bw_argument_id / 2) in affordable_argument_ids:
-                            break
+                for bw_argument_id in ranking:
+                    if bw_argument_id in affordable_argument_ids:
+                        break
                 # Convert bw id to normal id.
-                rebuttal_id = int(bw_argument_id / 2)
-                rebuttal_obj = self.culture.argumentation_framework.argument(rebuttal_id)
+                rebuttal_id = bw_argument_id
+                rebuttal_obj = self.bw_framework.argument(rebuttal_id)
+                last_argument[player] = [rebuttal_id]
+                logging.debug("Agent {} chose least attacked argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(rebuttal_id)
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
-            elif self.strategy == ArgumentationStrategy.ALL_ARGS:
+            elif self.strategy == ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY:
+                ranking = self.bw_framework.least_attacked
+                bw_argument_id = -1
+                for bw_argument_id in ranking:
+                    if bw_argument_id in verified_argument_ids:
+                        break
+                rebuttal_id = bw_argument_id
+                last_argument[player] = [rebuttal_id]
+                logging.debug("Agent {} chose least attacked argument {}".format(player.id, last_argument[player]))
+                used_arguments[player].append(rebuttal_id)
+
+            elif self.strategy == ArgStrategy.MOST_ATTACKS_PRIVATE:
+                if not affordable_argument_ids:
+                    game_over = True
+                    winner = opponent
+                    player.unfair_perception_score += 1
+                    considered_unfair = True
+                    logging.debug("Agent {} cannot afford any argument!".format(player.id))
+                    logging.debug("Agent {} wins!".format(winner.id))
+                    logging.debug("Used arguments: {}".format(used_arguments[winner]))
+                    break
+                # argument_strength = self.bw_framework.argument_strength
+                # min_strength = min(argument_strength.values())
+                # max_strength = max(argument_strength.values())
+                # if min_strength == max_strength:
+                #     max_strength = 2
+                #     min_strength = 1
+                # strength_per_cost = {}
+                # for arg_id, strength in argument_strength.items():
+                #     privacy_cost = self.bw_framework.argument(arg_id).privacy_cost
+                #     if privacy_cost == 0:
+                #         privacy_cost = 1
+                #     normalised_strength = ((strength - min_strength) / (max_strength - min_strength)) * 20
+                #     strength_per_cost[arg_id] = normalised_strength / privacy_cost
+                # argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
+                # relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
+                # if self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
+                # ranking = argument_desc_rank
+                # pass
+                # else:
+                #     ranking = relative_desc_rank
+
+                ranking = self.bw_framework.strongest_attackers
+                rebuttal_id = -1
+                bw_argument_id = -1
+                for bw_argument_id in ranking:
+                    if bw_argument_id in affordable_argument_ids:
+                        break
+                # Convert bw id to normal id.
+                rebuttal_id = bw_argument_id
+                rebuttal_obj = self.bw_framework.argument(rebuttal_id)
+                last_argument[player] = [rebuttal_id]
+                logging.debug("Agent {} chose most attacking argument {}".format(player.id, last_argument[player]))
+                used_arguments[player].append(rebuttal_id)
+                privacy_budget[player] -= rebuttal_obj.privacy_cost
+
+            elif self.strategy == ArgStrategy.MOST_ATTACKS_NO_PRIVACY:
+                ranking = self.bw_framework.strongest_attackers
+                bw_argument_id = -1
+                for bw_argument_id in ranking:
+                    if bw_argument_id in verified_argument_ids:
+                        break
+                rebuttal_id = bw_argument_id
+                last_argument[player] = [rebuttal_id]
+                logging.debug("Agent {} chose most attacking argument {}".format(player.id, last_argument[player]))
+                used_arguments[player].append(rebuttal_id)
+
+            elif self.strategy == ArgStrategy.ALL_ARGS:
                 # Use all arguments as possible.
-                # FIXME: Not looking into budget for now.
-                logging.debug("Agent {} chose arguments {}".format(player.id, verified_argument_ids))
-                used_arguments[player].extend(verified_argument_ids)
+                attacked_arguments = set(self.bw_framework.arguments_attacked_by_list(verified_argument_ids))
+                last_arguments = set(last_argument[opponent])
+                if last_arguments.issubset(attacked_arguments):
+                    logging.debug("Agent {} chose arguments {}".format(player.id, verified_argument_ids))
+                    used_arguments[player].extend(verified_argument_ids)
+                    last_argument[player] = verified_argument_ids
+                else:
+                    game_over = True
+                    winner = opponent
+                    logging.debug("Agent {} fails to attack all previous arguments!".format(player.id))
+                    logging.debug("Agent {} wins!".format(winner.id))
+                    logging.debug("Used arguments: {}".format(used_arguments[winner]))
 
             else:
                 logging.error("AgentQueue::interact_pair: No valid strategy was chosen!")
@@ -347,96 +706,6 @@ class AgentQueue:
 
             turn += 1
 
-        return winner == defender
-
-# base_queue = AgentQueue(ArgumentationStrategy.RANDOM_CHOICE_WITH_PRIVACY)
-# base_str = base_queue.culture.argumentation_framework.to_aspartix()
-# bw_str = base_queue.culture.raw_bw_framework.to_aspartix()
-# logging.debug(base_str)
-# # print(bw_str)
-#
-#
-#
-# logging.debug("\n\n ATTEMPT 1 \n\n")
-# q1 = copy.deepcopy(base_queue)
-# q1.set_strategy(ArgumentationStrategy.ALL_ARGS)
-# q1.interact_all()
-# logging.debug("\n\n ATTEMPT 2 \n\n")
-# q2 = copy.deepcopy(base_queue)
-# q2.interact_all()
-# logging.debug("\n\n ATTEMPT 3 \n\n")
-# q3 = copy.deepcopy(base_queue)
-# q3.interact_all()
-# logging.debug("\n\n ATTEMPT 4 \n\n")
-# q4 = copy.deepcopy(base_queue)
-# q4.interact_all()
-# logging.debug("\n\n ATTEMPT 5 \n\n")
-# q5 = copy.deepcopy(base_queue)
-# q5.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
-# q5.interact_all()
-# logging.debug("\n\n ATTEMPT 6 \n\n")
-# q6 = copy.deepcopy(base_queue)
-# q6.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
-# q6.interact_all()
-# logging.debug("\n\n ATTEMPT 7 \n\n")
-# q7 = copy.deepcopy(base_queue)
-# q7.set_strategy(ArgumentationStrategy.RANDOM_CHOICE_NO_PRIVACY)
-# q7.interact_all()
-# logging.debug("\n\n ATTEMPT 8 \n\n")
-# q8 = copy.deepcopy(base_queue)
-# q8.set_strategy(ArgumentationStrategy.GREEDY_MIN_PRIVACY)
-# q8.interact_all()
-# # logging.debug("\n\n ATTEMPT 9 \n\n")
-# # q9 = copy.deepcopy(base_queue)
-# # q9.set_strategy(ArgumentationStrategy.COUNT_OCCURRENCES_ADMISSIBLE)
-# # q9.interact_all()
-#
-#
-# print("GT: {}".format(q1.relative_queue(ground_truth=q1)))
-# print("P1: {}".format(q2.relative_queue(ground_truth=q1)))
-# print("P2: {}".format(q3.relative_queue(ground_truth=q1)))
-# print("P3: {}".format(q4.relative_queue(ground_truth=q1)))
-# print("R1: {}".format(q5.relative_queue(ground_truth=q1)))
-# print("R2: {}".format(q6.relative_queue(ground_truth=q1)))
-# print("R3: {}".format(q7.relative_queue(ground_truth=q1)))
-# print("GREEDY: {}".format(q8.relative_queue(ground_truth=q1)))
-# print("COUNT: {}".format(q9.relative_queue(ground_truth=q1)))
-
-# q1_str = q1.culture.argumentation_framework.to_aspartix()
-# q2_str = q2.culture.argumentation_framework.to_aspartix()
-# q3_str = q3.culture.argumentation_framework.to_aspartix()
-# q4_str = q4.culture.argumentation_framework.to_aspartix()
-#
-# all_strings = [base_str, q1_str, q2_str, q3_str, q4_str]
-#
-# for i in range(5):
-#     for j in range(5):
-#         if all_strings[i] != all_strings[j]:
-#             print("Frameworks {} and {} are different!".format(i, j))
-#         else:
-#             print("Frameworks {} and {} are the same.".format(i, j))
-# queue = AgentQueue(ArgumentationStrategy.RANDOM_CHOICE)
-# queue2 = copy.deepcopy(queue)
-# print("Order before interactions: {}".format(queue.queue_string()))
-# queue.interact_all()
-# print("Order after interactions: {}".format(queue.queue_string()))
-#
-# print("Order copy queue: {}".format(queue2.queue_string()))
-# queue2.interact_all()
-# print("Order copy queue after interactions: {}".format(queue2.queue_string()))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        total_privacy_cost = (defender.max_privacy_budget - privacy_budget[defender]) +\
+                             (challenger.max_privacy_budget - privacy_budget[challenger])
+        return (winner == defender), considered_unfair, total_privacy_cost
