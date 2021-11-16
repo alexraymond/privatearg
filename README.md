@@ -1,6 +1,8 @@
 # privatearg
 
-This is the repository for the code used in the paper Agree to Disagree: Subjective Fairness in Privacy-Restricted Decentralised Conflict Resolution.
+This is the repository for the code used in the paper [Agree to Disagree: Subjective Fairness in Privacy-Restricted Decentralised Conflict Resolution](https://arxiv.org/abs/2107.00032).
+
+
 
 If you would like to use this code, please cite
 ```buildoutcfg
