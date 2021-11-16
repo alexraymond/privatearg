@@ -3,6 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
 
+"""
+Script to compute dialogues.
+"""
+
 with open('C:/work/projects/privatearg/experiment_data.json') as file:
     data = json.load(file)
 

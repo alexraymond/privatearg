@@ -1,15 +1,25 @@
 import math
 import time
 from utils import *
-"""
-Car physics model adapted from: https://github.com/spacejack/carphysics2d/blob/master/public/js/Car.js
-Changes to make it more "boaty" are in order.
-"""
 
 
 class BoatModel:
+    """
+    Kinematics model for a boat.
+    Car physics model adapted from: https://github.com/spacejack/carphysics2d/blob/master/public/js/Car.js
+    Changes to make it more "boaty" are in order.
+    """
+
+    # Represents the limit distance for acquiring a target and ending a trajectory.
     acquisition_threshold = 100
     def __init__(self, sim, boat_id, position = (0,0), boat_type="medium"):
+        """
+        Initialises the kinematics model for the boat.
+        :param sim: The Sim instance where this boat will exist.
+        :param boat_id: The boat's ID.
+        :param position: The boat's initial position.
+        :param boat_type: The boat's type: {'small', 'medium', 'large'}
+        """
         self.sim = sim
         self.boat_id = boat_id
         self.last_update = time.time()
@@ -28,20 +38,35 @@ class BoatModel:
         self.frame_limit = 24000
         self.avoiding = set()
         self.unfairly_avoided = set()
+        self.trajectory = []
 
         self.init_kinematics()
 
     def get_position(self, zoom_factor=1):
+        """
+        Gets the relative position of the boat.
+        :param zoom_factor: The zoom factor required.
+        :return: Relative position (x,y)
+        """
         x = self.position[0] * zoom_factor
         y = self.position[1] * zoom_factor
         return x, y
 
     def get_goal(self, zoom_factor=1):
+        """
+        Gets the relative position of the goal.
+        :param zoom_factor: The zoom factor required.
+        :return: Relative position (x,y)
+        """
         x = self.goal[0] * zoom_factor
         y = self.goal[1] * zoom_factor
         return x, y
 
     def init_kinematics(self):
+        """
+        This function initialises a series of instance variables that control the kinematics model.
+        In this environment, we simplify the kinematics by using a car model and making it drive in reverse.
+        """
         #########
         # INPUT #
         #########
@@ -72,6 +97,7 @@ class BoatModel:
         #  VEHICLE PROPERTIES  #
         ########################
 
+        # Kinematic properties for each type of vehicle.
         if self.boat_type == "small":
             self.mass = 300  # kg
             self.inertiaScale = 1.0  # Multiply by mass for inertia
@@ -156,9 +182,18 @@ class BoatModel:
         self.DEBUG_message = ""
 
     def set_goal(self, x, y):
+        """
+        Sets the boat's goal location.
+        :param x: X coordinate of goal location.
+        :param y: Y coordinate of goal location.
+        """
         self.goal = (x, y)
 
     def auto_drive_potential_field(self):
+        """
+        Gets the velocity from the sim and generates steering and acceleration input.
+        The steering and acceleration input will be processed in simulate_kinematics().
+        """
         if self.goal is None or self.at_destination:
             self.throttle = self.brake = self.left = self.right = 0.0
             return
@@ -183,19 +218,23 @@ class BoatModel:
 
 
     def auto_steer(self, desired_heading):
+        """
+        Adjusts steering input (self.right and self.left) according to a desired heading.
+        :param desired_heading: Desired heading in radians.
+        """
         if self.goal is None:
             return
 
         gx, gy = self.goal
         cx, cy = self.position
 
-        # desired_heading = math.atan2(gy - cy, gx - cx)
         current_heading = self.heading + math.pi
         current_heading %= 2*math.pi
         current_heading = (current_heading + math.pi) % (2*math.pi) - math.pi
 
         error = desired_heading - current_heading
 
+        # Adjust function to guarantee that the vehicle chooses the smallest angle.
         def adjust_error(error):
             if error < -math.pi:
                 e = 2*math.pi + error
@@ -216,6 +255,10 @@ class BoatModel:
             self.left = bound(k_p * normalise(math.fabs(error), 0, 2*math.pi), 0, 1)
 
     def auto_accelerate(self, norm):
+        """
+        Adjusts acceleration (self.accelerate and self.brake) according to the norm of the velocity vector.
+        :param norm: Norm of the velocity vector.
+        """
         if self.goal is None:
             return
 
@@ -239,9 +282,18 @@ class BoatModel:
             self.brake = bound(k_p * -error, 0.0, 1.0)
 
     def reset_inputs(self):
+        """
+        Resets all inputs and effectively makes the vehicle drift.
+        """
         self.left = self.right = self.throttle = self.brake = 0.0
 
     def smooth_steering(self, steer_input, dt):
+        """
+        Gradually deliver steering input instead of snapping into states.
+        :param steer_input: Current steering input.
+        :param dt: Time since last frame.
+        :return: Bounded steering input.
+        """
         steer = 0
         # Steering input present?
         if math.fabs(steer_input) > 0.001:
@@ -255,11 +307,22 @@ class BoatModel:
         return steer
 
     def safe_steering(self, steer_input):
+        """
+        Prevents abrupt changes in steering depending on speed.
+        :param steer_input: Current steering input.
+        :return: Limited steering input.
+        """
         abs_vel = min(self.abs_velocity, 250.0)
         steer = steer_input * (1.0 - (abs_vel / 280.0))
         return steer
 
     def simulate_kinematics(self):
+        """
+        The major kinematics simulation. Every call to this function will get the current
+        input in steering and acceleration, as well as the extant forces and momentum, to calculate
+        the next frame. The vehicle kinematics will be updated, as well as its position.
+        If the vehicle arrives at its destination, we no longer need to simulate this vehicle.
+        """
         if self.at_destination:
             return
 
@@ -386,6 +449,7 @@ class BoatModel:
         cx += self.vx * dt
         cy += self.vy * dt
         self.position = (cx, cy)
+        self.trajectory.append((cx, cy))
         if self.write_trajectories:
             snapshot = {}
             # snapshot["boat_id"] = self.boat_id
@@ -403,4 +467,7 @@ class BoatModel:
             self.sim.trajectories[self.boat_id].append(snapshot)
 
     def relative_speed(self):
+        """
+        :return: Current speed in [0.0, 1.0] format, where 1.0 == maximum speed.
+        """
         return bound(self.abs_velocity / self.max_speed, 0.0, 1.0)

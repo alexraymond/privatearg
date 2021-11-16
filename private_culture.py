@@ -11,6 +11,8 @@ from base_culture import Culture
 from functools import partial
 from argument import Argument, PrivateArgument, ArgumentationFramework
 
+
+# FIXME: Remove temporary debug stuff.
 DEBUG_FILE = False
 if DEBUG_FILE:
     LOG_FILENAME = 'debug2.log'
@@ -19,9 +21,16 @@ if DEBUG_FILE:
     logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
 def always_true(*args, **kwargs):
+    # To be used as a function pointer.
     return True
 
 class RandomCulture(Culture):
+    """
+    A random instantiation of a Culture, using random properties and rules.
+    Each agent has a number of different properties with random values.
+    The create_arguments and define_attacks functions define the structure of the argumentation framework.
+    All verifier functions consist of simply checking the direction of inequality.
+    """
     num_args = 50
     num_properties = num_args
     def __init__(self):
@@ -29,36 +38,42 @@ class RandomCulture(Culture):
         super().__init__()
         self.name = "Sample"
         self.properties = {}
-        self.raw_bw_framework = None
+        self.raw_alteroceptive_framework = None
 
         self.create_random_properties()
         # if DEBUG_FILE:
         #     self.load_framework()
         # else:
         self.create_arguments()
+        # Commented out as we are assuming the property of transitivity.
         # self.define_attacks()
         self.define_attacks_transitive()
-        self.generate_bw_framework()
+        self.generate_alteroceptive_framework()
 
     def create_random_properties(self):
+        """
+        Assigns random values to the culture properties.
+        """
         for i in range(0, self.num_properties):
             self.properties[i] = random.randint(0, 1000)
-            # dist = np.random.normal(50.5, 1, 100)
-            # value = random.choice(dist)
-            # self.properties[i] = int(value)
 
     def load_framework(self):
         def generate_verifier_function(idx):
+            """
+            This helper function generates a unique verifier function for the culture arguments.
+            :param idx: The argument ID.
+            :return: A partial function object containing a callable verifier function prototype.
+            """
             def verifier_prototype(idx, self_agent, other_agent):
                 return self_agent.properties[idx] > other_agent.properties[idx]
 
-            # idx = random.randrange(1, self.num_properties)
             return partial(verifier_prototype, idx)
 
         random_costs = []
         for i in range(1, 20):
             random_costs.append(random.randint(1, 20))
 
+        # Loading argumentation framework from aspartix file.
         with open('sample2.apx', 'r') as file:
             lines = file.readlines()
             for line in lines:
@@ -96,6 +111,11 @@ class RandomCulture(Culture):
         args.append(motion)
 
         def generate_verifier_function(idx):
+            """
+            This helper function generates a unique verifier function for the culture arguments.
+            :param idx: The argument ID.
+            :return: A partial function object containing a callable verifier function prototype.
+            """
             def verifier_prototype(idx, self_agent, other_agent):
                 return self_agent.properties[idx] > other_agent.properties[idx]
 
@@ -156,30 +176,26 @@ class RandomCulture(Culture):
         """
 
         def replicate_attacks(a, to_visit, visited):
+            """
+            Performs a breadth-first search to make sure that attacks are replicated to
+            ensure transitivity.
+            :param a: Current argument.
+            """
             while to_visit:
-                # print("Propagating attacks from {} to others".format(b))
                 current_arg = to_visit.pop()
-                # print("What about {}?".format(current_arg))
                 if current_arg in visited:
-                    # print("{} has been visited already.".format(current_arg))
                     continue
                 if current_arg in self.AF.arguments_that_attack(a):
-                    # print("{} already attacks {}!".format(current_arg, a))
                     continue
-                # print("Adding propagated attack: {} attacks {}".format(a, current_arg))
                 if a > current_arg:
                     self.AF.add_attack(a, current_arg)
-                # print("State of AF: {}".format(self.argumentation_framework.attacks()))
-                # print("Expanding list with {}".format(to_visit.union(self.argumentation_framework.arguments_attacked_by(current_arg))))
                 to_visit.update(self.AF.arguments_attacked_by(current_arg))
                 visited.add(current_arg)
 
-
-        # print("\n\n\nGENERATING ATTACKS!")
+        # Use a stochastic approach to building the graph.
         num_attacks = self.num_args * 8
         connected = set()
         connected.add(0)
-        # num_attacks = 12
         for i in range(num_attacks):
             a = b = 0
             while a == b:  # Avoid self-attacks.
@@ -189,10 +205,7 @@ class RandomCulture(Culture):
                 if b in self.AF.arguments_that_attack(a) or b > a:
                     a = b = 0
                     continue
-            # if b not in self.argumentation_framework.arguments_attacked_by(a):
-            #     print("{} attacks {}".format(a, b))
             self.AF.add_attack(a, b)
-            # print("State of AF: {}".format(self.argumentation_framework.attacks()))
             connected.add(a)
             connected.add(b)
 
@@ -202,39 +215,25 @@ class RandomCulture(Culture):
 
             replicate_attacks(a, to_visit, visited)
 
-
         for arg_id in self.AF.all_arguments.copy().keys():
             if arg_id not in connected:
-                # print("\nREMOVING ARGUMENT {}\n".format(arg_id))
                 self.AF.remove_argument(arg_id)
-        # self.argumentation_framework.make_spanning_graph()
 
         leaves = set()
         for id in self.AF.argument_ids():
             if id not in self.AF.attacked_by().keys():
                 leaves.add(id)
         print("Number of maximal arguments before: {}".format(len(leaves)))
-        # if len(leaves) > 1 and ensure_single_winner == True:
-        #     final_leaf = max(leaves)
-        #     for leaf in leaves:
-        #         if leaf == final_leaf:
-        #             continue
-        #         to_visit = self.argumentation_framework.arguments_attacked_by(leaf).copy()
-        #         visited = set()
-        #         self.argumentation_framework.add_attack(final_leaf, leaf)
-        #         replicate_attacks(final_leaf, to_visit, visited)
-        # self.argumentation_framework.stats()
 
-
-    def generate_bw_framework(self):
+    def generate_alteroceptive_framework(self):
         """
-        This function generates and populates a black-and-white framework (forced bipartition) from an existing culture.
-        A black-and-white framework is built with the following rules:
+        This function generates and populates an alteroceptive framework (forced bipartition) from an existing culture.
+        An alteroceptive framework is built with the following rules:
         1. Every argument is represented by 4 nodes, black and white X hypothesis and verified.
         2. Every attack between arguments is reconstructed between nodes of different colours.
         :return: A flat black-and-white framework.
         """
-        self.raw_bw_framework = ArgumentationFramework()
+        self.raw_alteroceptive_framework = ArgumentationFramework()
         for argument in self.AF.arguments():
             # Even indices for defender, odd for challenger.
             # Adding hypothetical arguments.
@@ -259,19 +258,19 @@ class RandomCulture(Culture):
             black_verified.set_verifier(f_verifier)
             white_verified.set_verifier(f_verifier)
 
-            self.raw_bw_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
+            self.raw_alteroceptive_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
 
             # Adding mutual attacks between contradictory hypotheses.
-            self.raw_bw_framework.add_attack(black_hypothesis.id(), white_hypothesis.id())
-            self.raw_bw_framework.add_attack(white_hypothesis.id(), black_hypothesis.id())
+            self.raw_alteroceptive_framework.add_attack(black_hypothesis.id(), white_hypothesis.id())
+            self.raw_alteroceptive_framework.add_attack(white_hypothesis.id(), black_hypothesis.id())
 
             # Adding mutual attacks between contradictory verified arguments.
-            self.raw_bw_framework.add_attack(black_verified.id(), white_verified.id())
-            self.raw_bw_framework.add_attack(white_verified.id(), black_verified.id())
+            self.raw_alteroceptive_framework.add_attack(black_verified.id(), white_verified.id())
+            self.raw_alteroceptive_framework.add_attack(white_verified.id(), black_verified.id())
 
             # Adding attacks between immediate verified and hypothetical arguments.
-            self.raw_bw_framework.add_attack(black_verified.id(), white_hypothesis.id())
-            self.raw_bw_framework.add_attack(white_verified.id(), black_hypothesis.id())
+            self.raw_alteroceptive_framework.add_attack(black_verified.id(), white_hypothesis.id())
+            self.raw_alteroceptive_framework.add_attack(white_verified.id(), black_hypothesis.id())
 
         # Adding attacks between different arguments in original framework.
         # Each hypothesis attacks both the attacked hypothesis and verified arguments.
@@ -285,35 +284,12 @@ class RandomCulture(Culture):
                 white_hypothesis_attacked_id = attacked_id * 4 + 1
                 black_verified_attacked_id = attacked_id * 4 + 2
                 white_verified_attacked_id = attacked_id * 4 + 3
-                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_hypothesis_attacked_id)
-                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_verified_attacked_id)
-                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_hypothesis_attacked_id)
-                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_verified_attacked_id)
+                self.raw_alteroceptive_framework.add_attack(black_hypothesis_attacker_id, white_hypothesis_attacked_id)
+                self.raw_alteroceptive_framework.add_attack(black_hypothesis_attacker_id, white_verified_attacked_id)
+                self.raw_alteroceptive_framework.add_attack(white_hypothesis_attacker_id, black_hypothesis_attacked_id)
+                self.raw_alteroceptive_framework.add_attack(white_hypothesis_attacker_id, black_verified_attacked_id)
 
 
-
-# culture = RandomCulture()
-# with open('sample.af',  'w') as file:
-    # file.write(culture.argumentation_framework.to_aspartix())
-
-
-# subprocess.run(["conarg_x64/conarg2", "-w dung", "-e admissible", "-c 4", "sample.af"])
-# result = subprocess.run(["conarg_x64/conarg2", "-w dung", "-e conflictfree", "sample.af"],
-#                          capture_output=True, text=True)
-# result_string = result.stdout
-# print(result_string)
-# p = re.compile(r'\"[ *\d+]*\S\"')
-# match = re.findall(r'\"[ *\d+]*\S\"', result_string)
-# num_args = 10
-# occurrences = {}
-# for i in range(0, num_args):
-#     occurrences[i] = 0
-# for m in match:
-#     m = m.replace("\"", "")
-#     for i in range(0, num_args):
-#         if str(i) in m:
-#             occurrences[i] += 1
-# print(occurrences)
 
 
 

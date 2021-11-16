@@ -3,21 +3,34 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
 import matplotlib.colors as mcolors
+import seaborn as sns
+palette = sns.color_palette("colorblind")
+sns.set(style="whitegrid", font_scale=2)
+textfont = {'fontname': 'Linux Libertine'}
+ttfont = {'fontname': 'Inconsolata'}
+plt.rcParams['font.family'] = 'Linux Libertine'
 
-colours = list(mcolors.TABLEAU_COLORS.keys()) + list("bgrcmyk")
+colours = list(palette) + list(mcolors.TABLEAU_COLORS.keys()) + list("bgrcmyk")
 
 strategies = ["ArgStrategy.RANDOM_CHOICE_PRIVATE",
               "ArgStrategy.LEAST_COST_PRIVATE",
               "ArgStrategy.MOST_ATTACKS_PRIVATE",
               "ArgStrategy.LEAST_ATTACKERS_PRIVATE"]
 
+strategies = strategies[0:1]
+
 labels = ['random', 'min_cost', 'offensive', 'defensive']
 
-path = "results/experiment97/"
 
-max_g = 60
+# experiment_id = 97
+#8,16 is good
+boat_id = "13"
+experiment_id = 31
+max_g = 40
+path = "results_g{}/experiment{}/".format(max_g, experiment_id)
 
-boat_id = "7"
+
+
 
 normal_data = {}
 normal_trajectories = {}
@@ -55,7 +68,7 @@ for strategy in strategies:
 
 load_trajectory(objective_trajectory["x"], objective_trajectory["y"], objective_data)
 
-fig = plt.figure(figsize=(16, 9))
+fig = plt.figure(figsize=(21, 16))
 trajectories_plot = fig.add_subplot(1, 1, 1)
 
 for mode in ["normal", "subjective"]:
@@ -64,13 +77,13 @@ for mode in ["normal", "subjective"]:
         current_colour = colours[i % len(colours)]
         if mode == "normal":
             trajectories_plot.plot(normal_trajectories[strategy]["x"], normal_trajectories[strategy]["y"],
-                                   color=current_colour)
+                                   color=current_colour, linewidth=2)
         else:
             trajectories_plot.plot(subjective_trajectories[strategy]["x"], subjective_trajectories[strategy]["y"],
-                                   color=current_colour, linestyle='dashed')
+                                   color=current_colour, linewidth=2, linestyle='dashed')
         i += 1
 
-trajectories_plot.plot(objective_trajectory["x"], objective_trajectory["y"], color="black", linestyle='dotted')
+trajectories_plot.plot(objective_trajectory["x"], objective_trajectory["y"], color="black", linestyle='dotted', linewidth=2)
 trajectories_plot.set_title('Trajectories')
 trajectories_plot.set_xlabel('X coordinate')
 trajectories_plot.set_ylabel('Y coordinate')
@@ -82,6 +95,7 @@ for mode in ["normal", "subjective"]:
         labels.append("{} {}".format(mode, strategy))
 labels.append("objective")
 
-trajectories_plot.legend(labels)
+trajectories_plot.legend(labels, loc='lower center', bbox_to_anchor=(0.5, 0.95),
+                            ncol=3, fancybox=True, shadow=True)
 plt.savefig('compare_trajectories.pdf')
 plt.show()

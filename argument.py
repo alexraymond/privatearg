@@ -4,6 +4,10 @@ import re
 # import graph_tool.all as gt
 
 class Argument:
+    """
+    Base Argument class. An ArgumentationFramework is composed of multiple Arguments and attack relationships
+    between them. Every argument has a verifier function that is injected from the culture.
+    """
     def __init__(self, arg_id, descriptive_text):
         self.__arg_id = arg_id
         self.descriptive_text = descriptive_text
@@ -20,8 +24,12 @@ class Argument:
     def add_evidence(self, evidence):
         self.evidence.append(evidence)
 
-
     def attacks(self, attacked):
+        """
+        Establishes an attack relationship between arguments a and b.
+        Usage is in the form a.attacks(b).
+        :param attacked: Argument b in the example above.
+        """
         if type(attacked) is Argument:
             self.__framework.add_argument(self)
             self.__framework.add_argument(attacked)
@@ -35,17 +43,27 @@ class Argument:
 
     def set_verifier(self, verifier):
         self.verifier_function = verifier
-        pass
 
     def verifier(self):
         return self.verifier_function
 
     def verify(self, me, they):
+        """
+        This is the act of calling the externally-injected verifier function.
+        In this case, the verifier function must accept two arguments, representing the two agents
+        in the dialogue.
+        :param me: The agent to whom the perspective of the argument applies. The 'I' in 'I am older than you.'
+        :param they: The other agent. The 'you' in 'I am older than you.'
+        :return: True if the argument holds. False otherwise.
+        """
         if self.verifier_function is not None:
             return self.verifier_function(me, they)
 
 
 class PrivateArgument(Argument):
+    """
+    A specialisation of the Argument class to support privacy-aware dialogues.
+    """
     def __init__(self, arg_id, privacy_cost, descriptive_text="", hypothesis_text="", verified_fact_text=""):
         super(PrivateArgument, self).__init__(arg_id, descriptive_text)
         self.privacy_cost = privacy_cost
@@ -56,6 +74,9 @@ class PrivateArgument(Argument):
 
 
 class ArgumentationFramework:
+    """
+    An argumentation framework is represented as a directed graph on Arguments.
+    """
     def __init__(self):
         self.all_arguments = {}
         self.all_attacks = {}
@@ -107,23 +128,43 @@ class ArgumentationFramework:
         self.all_attacked_by[attacked_id].add(attacker_id)
 
     def arguments_that_attack(self, argument):
+        """
+        Returns all other arguments that attack the parameter argument.
+        :param argument: The reference argument.
+        :return: Set of arguments that attack it.
+        """
         if isinstance(argument, list):
             return self.arguments_that_attack_list(argument)
         return self.all_attacked_by.get(argument, set())
 
     def arguments_that_attack_list(self, argument_list):
+        """
+        Same as arguments_that_attack, but concerning a list of arguments.
+        :param argument_list: The list of arguments that are attacked.
+        :return: Set of arguments that attack it.
+        """
         result = set()
         for argument_id in argument_list:
             result.update(self.arguments_that_attack(argument_id))
         return result
 
     def arguments_attacked_by_list(self, argument_list):
+        """
+        The inverse of arguments_that_attack_list.
+        :param argument_list: The list of arguments that attack.
+        :return: Set of arguments that is attacked by this list.
+        """
         result = set()
         for argument_id in argument_list:
             result.update(self.arguments_attacked_by(argument_id))
         return result
 
     def arguments_attacked_by(self, argument):
+        """
+        Returns all other arguments that are attacked by the parameter argument.
+        :param argument: The reference argument.
+        :return: Set of arguments are attacked by it.
+        """
         if isinstance(argument, list):
             return self.arguments_attacked_by_list(argument)
         return self.all_attacks.get(argument, set())
@@ -163,6 +204,12 @@ class ArgumentationFramework:
         self.argument_strength = argument_strength
 
     def run_solver(self, semantics="EE-PR", arg_str=""):
+        """
+        Runs the mu-toksia solver to check if an argument is part of the extension given by the semantics.
+        :param semantics: The type of semantics to be considered.
+        :param arg_str: The string defining the argument.
+        :return: stdout output of the solver (likely "YES" or "NO").
+        """
         with open('sample.apx',  'w') as file:
             file.write(self.to_aspartix_id())
 
@@ -223,76 +270,6 @@ class ArgumentationFramework:
                 text += "att({},{}).\n".format(attacker_text, attacked_text)
         return text
 
-    # def to_graph_tool(self):
-    #     g = gt.Graph(directed=True)
-    #     ref = {}
-    #     g.vp.id = g.new_vertex_property("int")
-    #     g.vp.privacy = g.new_vertex_property("int")
-    #     g.vp.arg_obj = g.new_vertex_property("object")
-    #     for argument_id, argument_obj in self.all_arguments.items():
-    #         v = g.add_vertex()
-    #         ref[argument_id] = v
-    #         g.vp.id[v] = argument_id
-    #         g.vp.privacy[v] = argument_obj.privacy_cost
-    #         g.vp.arg_obj[v] = argument_obj
-    #     for attacker, attacked_set in self.all_attacks.items():
-    #         for attacked in attacked_set:
-    #             source = ref[attacker]
-    #             target = ref[attacked]
-    #             g.add_edge(source, target)
-    #     return g
-    #
-    # def from_graph_tool(self, g):
-    #     self.all_arguments = {}
-    #     self.all_attacks = {}
-    #     self.all_attacked_by = {}
-    #     ref = {}
-    #     for v in g.vertices():
-    #         id = g.vp.id[v]
-    #         privacy = g.vp.privacy[v]
-    #         obj = g.vp.arg_obj[v]
-    #         new_arg = PrivateArgument(arg_id=id,
-    #                                   descriptive_text=obj.descriptive_text(),
-    #                                   privacy_cost=privacy)
-    #         new_arg.set_verifier(obj.verifier_function)
-    #         self.add_argument(new_arg)
-    #
-    #     for e in g.edges():
-    #         source_id = g.vp.id[e.source()]
-    #         target_id = g.vp.id[e.target()]
-    #         self.add_attack(source_id, target_id)
-    #
-    # def make_largest_component(self):
-    #     g = self.to_graph_tool()
-    #     comp = gt.label_largest_component(g, directed=False)
-    #     g = gt.GraphView(g, vfilt=comp)
-    #     self.from_graph_tool()
-    #
-    # def make_spanning_graph(self):
-    #     spanning_graph = None
-    #     while True:
-    #         self.make_largest_component()
-    #         g = self.to_graph_tool()
-    #         motion_found = gt.find_vertex(g, g.vp.id, 0)
-    #         if motion_found:
-    #             spanning_graph = gt.random_spanning_tree(g, root=motion_found[0])
-    #             break
-    #         print("Failed to find root!")
-    #     g = gt.GraphView(g, efilt=spanning_graph)
-    #     self.from_graph_tool(g)
-    #
-    # def stats(self):
-    #     g = self.to_graph_tool()
-    #     dist, ends = gt.pseudo_diameter(g)
-    #     print("Diameter: {}".format(dist))
-    #     num_v = len(g.get_vertices())
-    #     num_e = len(g.get_edges())
-    #     print("Edges per vertex: {}".format(num_e/num_v))
-    #
-    #
-    # def circuits(self):
-    #     g = self.to_graph_tool()
-    #     self.from_graph_tool(g)
 
 
 
