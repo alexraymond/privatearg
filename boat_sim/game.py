@@ -22,15 +22,20 @@ from vehicle_model import BoatModel
 from sim import Sim
 from utils import *
 
+"""
+Rendering constants.gg
+"""
 SPRITE_SCALING = 0.25
-
 SCREEN_WIDTH = 1900
 SCREEN_HEIGHT = 900
 SCREEN_TITLE = "Boat Sim"
 
 
 class BoatSprite(arcade.Sprite):
-    """ Player class """
+    """
+    This class contains the graphical representation of the boat on the screen.
+    BoatSprites are loaded by BoatSim.
+    """
     SPRITE_LENGTHS = {"small": 105, "medium": 179, "large": 368}
     IMAGES =  {"small" : "images/ship_small_b_body.png",
                "medium": "images/ship_medium_body_b2.png",
@@ -38,20 +43,28 @@ class BoatSprite(arcade.Sprite):
     RIPPLES = {"small" : "images/water_ripple_small_000.png",
                "medium": "images/water_ripple_medium_000.png",
                "large" : "images/water_ripple_big_000.png"}
-    OFFSET = 15
+    RIPPLE_OFFSET = 15
 
-    def __init__(self, game, center_x, center_y, sim, boat_type="medium"):
-        """ Create vehicle model and setup sprites """
+    def __init__(self, game, boat_id, center_x, center_y, sim, boat_type="medium"):
+        """ Create vehicle model and setup sprites
+        :param game: Instance of the BoatGUI class representing the game.
+        :param boat_id: Boat ID associated with the sprite.
+        :param center_x: Center X position of the boat.
+        :param center_y: Center Y position of the boat.
+        :param sim: Instance of the Sim class representing the detached game backend.
+        :param boat_type: Type of boat {'small', 'medium', 'large'}
+        """
 
         self.base_sim = sim
         self.game_handle = game
 
-        # Call the parent init
+        # Call the parent init.
         super().__init__(self.IMAGES[boat_type], self.game_handle.sprite_scaling)
 
+        # Retrieve boat length from constants above.
         self.length = self.SPRITE_LENGTHS[boat_type]
         # FIXME: with new method signature
-        self.vehicle_model = self.base_sim.add_boat(self.base_sim, center_x, center_y, boat_type=boat_type)
+        self.vehicle_model = self.base_sim.add_boat(self.base_sim, boat_id, center_x, center_y, boat_type=boat_type)
 
         self.center_x = center_x
         self.center_y = center_y
@@ -65,48 +78,67 @@ class BoatSprite(arcade.Sprite):
 
 
     def ripple(self):
+        """
+        Returns the ripple sprite for this particular boat.
+        :rtype: arcade.Sprite object
+        """
         return self.ripple_sprite
 
     def update_ripple_sprite(self, radians, center_x, center_y):
+        """
+        Updates the position and rotation of the ripple sprite.
+        :param radians: Angle of the ripple sprite in radians.
+        :param center_x: Center X position of the ripple sprite.
+        :param center_y: Center Y position of the ripple sprite.
+        """
         self.ripple_sprite.radians = radians
-        self.ripple_sprite.center_x = center_x + self.OFFSET * math.cos(radians)
-        self.ripple_sprite.center_y = center_y + self.OFFSET * math.sin(radians)
+
+        # Ripples need to be slightly larger than the boat sprites or they will be occluded.
+        # We add the RIPPLE_OFFSET constant to adjust for that.
+        self.ripple_sprite.center_x = center_x + self.RIPPLE_OFFSET * math.cos(radians)
+        self.ripple_sprite.center_y = center_y + self.RIPPLE_OFFSET * math.sin(radians)
         self.ripple_sprite.alpha = math.fabs(self.vehicle_model.relative_speed() * 255)
 
         self.ripple_sprite.update()
 
     def update(self):
+        """
+        Queries the model and updates the boat sprite.
+        """
         # Update vehicle physics
         self.vehicle_model.simulate_kinematics()
 
-        # Rotate the ship
+        # Rotate the boat
         self.radians = self.vehicle_model.heading
-        # print("angle: {}".format(self.angle))
 
-        # Use math to find our change based on our speed and angle
+        # Find our change based on our speed and angle
         self.center_x, self.center_y = self.vehicle_model.get_position(self.game_handle.zoom_factor)
 
         self.update_ripple_sprite(self.radians, self.center_x, self.center_y)
 
 
-class MyGame(arcade.Window):
+class BoatGUI(arcade.Window):
     """
-    Main application class.
+    Main application class. This is a scene of multiple boats heading towards each other
+    and attempting to avoid collisions using the methods described in the paper.
+    To run scenarios, we expect to be fed a config file with details of the simulation.
+    Examples are provided in the scenarios folder.
     """
     SIZES = {"small": 105, "medium": 179, "large": 368}
 
     def __init__(self, config_file_path):
         """
-        Initializer
+        Reads the config file and initialises the interface.
         """
-
+        # Variable containing the general config dict.
         self.all_configs = None
-
         with open(config_file_path) as file:
             self.all_configs = json.load(file)
 
+        # Separate the graphics part from the general config.
         graphics_config = self.all_configs["sim"]["graphics"]
 
+        # Load some properties.
         width = graphics_config["width"]
         height = graphics_config["height"]
         title = graphics_config["window_title"]
@@ -117,28 +149,29 @@ class MyGame(arcade.Window):
         self.viewport_bottom = 0
         self.viewport_top = height
         self.viewport_zoom = 1
+        self.screenshot_counter = 0
 
-        # Call the parent class initializer
+        # Call the parent class initializer.
         super().__init__(width, height, title, resizable=True)
 
         # Set the working directory (where we expect to find files) to the same
-        # directory this .py file is in. You can leave this out of your own
-        # code, but it is needed to easily run the examples using "python -m"
-        # as mentioned at the top of this program.
+        # directory this .py file is in.
         file_path = os.path.dirname(os.path.abspath(__file__))
         os.chdir(file_path)
 
-        # Base simulator common to all agents
+        # Base simulator (headless) that is common to all agents.
         self.base_sim = Sim(sim_config=self.all_configs["sim"])
 
+        # Gets all sprites (boats/ripples/etc) involved.
         self.all_sprite_list = arcade.SpriteList()
 
+        # Boat sprites exclusively.
         self.boat_sprites = []
 
         # Set the background color
         arcade.set_background_color(arcade.color.BLACK)
 
-        # Config
+        # Load optional render config
         self.draw_potential_field = graphics_config["potential_field"]["render"]
         self.potential_field_resolution = graphics_config["potential_field"]["resolution"]
         self.draw_goals = graphics_config["goals"]
@@ -148,12 +181,16 @@ class MyGame(arcade.Window):
         self.draw_trajectories = graphics_config["trajectories"]
         self.debug = graphics_config["debug_info"]
 
+        # Background textures where boats will be drawn on.
         self.background_textures = []
 
         self.timestamp = time.time()
         self.frame_counter = 0
 
     def load_background_textures(self):
+        """
+        Loads background textures and creates an animation loop by cycling over them.
+        """
         background_config = self.all_configs["sim"]["graphics"]["background"]
         background_path = background_config["path"]
         frames = background_config["frames"]
@@ -164,9 +201,13 @@ class MyGame(arcade.Window):
             self.background_textures.append(texture)
 
     def load_boats(self):
+        """
+        Creates BoatSprites from the boat specification in the config file.
+        """
         boats = self.all_configs["sim"]["boats"]
+        boat_id = 0
         for boat in boats:
-            boat_sprite = BoatSprite(self, boat["start_x"], boat["start_y"], self.base_sim, boat["size"])
+            boat_sprite = BoatSprite(self, boat_id, boat["start_x"], boat["start_y"], self.base_sim, boat["size"])
             boat_sprite.vehicle_model.set_goal(boat["goal_x"], boat["goal_y"])
             boat_sprite.vehicle_model.name = boat["name"]
             boat_sprite.vehicle_model.heading = math.radians(boat["initial_heading"])
@@ -174,6 +215,7 @@ class MyGame(arcade.Window):
             boat_sprite.vehicle_model.write_trajectories = self.all_configs["sim"]["write_trajectories"]
             self.boat_sprites.append(boat_sprite)
             self.all_sprite_list.extend([boat_sprite, boat_sprite.ripple()])
+            boat_id += 1
 
     def on_draw(self):
         """
@@ -181,10 +223,10 @@ class MyGame(arcade.Window):
         """
 
         timestamp = time.time()
-        # fps = 1.0 / (timestamp - self.timestamp)
         self.timestamp = timestamp
-        # print("FPS: ", fps)
         self.frame_counter += 1
+
+        # This variable controls how much we want to slow the background loop.
         slow_factor = 3
         frame = self.frame_counter % (slow_factor * len(self.background_textures))
         self.frame_counter = frame
@@ -194,7 +236,6 @@ class MyGame(arcade.Window):
         arcade.start_render()
 
         # Draw the background texture
-        # arcade.draw_lrwh_rectangle_textured(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, self.background)
         width = self.all_configs["sim"]["graphics"]["width"]
         height = self.all_configs["sim"]["graphics"]["height"]
         arcade.draw_lrwh_rectangle_textured(0, 0, width, height, self.background_textures[frame])
@@ -203,6 +244,17 @@ class MyGame(arcade.Window):
         self.all_sprite_list.draw()
 
         def draw_arrow(x1, y1, angle, length, colour, thickness = 1.0):
+            """
+            Helper function that draws an arrow from the tip of the boat, indicating desired steering.
+            :param x1: X coordinate of beginning of arrow.
+            :param y1: Y coordinate of beginning of arrow.
+            :param angle: Angle the arrow is pointing at.
+            :param length: Length of the arrow.
+            :param colour: Colour of the arrow.
+            :param thickness: Thickness of the arrow.
+            """
+
+            # Draw arrow body.
             x2 = x1 + length * math.cos(angle)
             y2 = y1 + length * math.sin(angle)
             arcade.draw_line(x1, y1, x2, y2, colour, thickness)
@@ -214,11 +266,13 @@ class MyGame(arcade.Window):
             norm = math.sqrt(dx * dx + dy * dy)
             udx = dx / norm  # Normalised x.
             udy = dy / norm
-            angle = math.pi / 6
-            ax = udx * math.cos(angle) - udy * math.sin(angle)
-            ay = udx * math.sin(angle) + udy * math.cos(angle)
-            bx = udx * math.cos(angle) + udy * math.sin(angle)
-            by = -udx * math.sin(angle) + udy * math.cos(angle)
+
+            # This controls how wide/narrow is our arrowhead.
+            arrowhead_angle = math.pi / 6
+            ax = udx * math.cos(arrowhead_angle) - udy * math.sin(arrowhead_angle)
+            ay = udx * math.sin(arrowhead_angle) + udy * math.cos(arrowhead_angle)
+            bx = udx * math.cos(arrowhead_angle) + udy * math.sin(arrowhead_angle)
+            by = -udx * math.sin(arrowhead_angle) + udy * math.cos(arrowhead_angle)
             arcade.draw_line(x2, y2, x2 + head_size * ax, y2 + head_size * ay, colour, thickness)
             arcade.draw_line(x2, y2, x2 + head_size * bx, y2 + head_size * by, colour, thickness)
 
@@ -242,15 +296,19 @@ class MyGame(arcade.Window):
                 boat_x, boat_y = boat.vehicle_model.get_position(self.zoom_factor)
                 goal_x, goal_y = boat.vehicle_model.get_goal(self.zoom_factor)
                 arcade.draw_circle_filled(goal_x, goal_y, 10, colour)
+
+                # Draws the trajectories of the boat as a series of dots.
                 if self.draw_trajectories:
                     trajectory = boat.vehicle_model.trajectory
-                    for i in range(0, len(trajectory), 30):
+                    for i in range(0, len(trajectory), 30):  # Draw one in each of 30 points saved.
                         arcade.draw_point(trajectory[i][0] * self.zoom_factor, trajectory[i][1] * self.zoom_factor, colour, 3)
+
+                # Draws the names of the boats.
                 if self.draw_names:
                     name = boat.vehicle_model.name
                     text_colour = arcade.color.WHITE if colour_id == "blue" or colour_id == "red" else arcade.color.BLACK
-                    arcade.draw_text(name, goal_x, goal_y, text_colour, 15)
-                    arcade.draw_text(name, boat_x, boat_y, colour, 15)
+                    # arcade.draw_text(name, goal_x, goal_y, text_colour, 15)
+                    arcade.draw_text(name, boat_x, boat_y+10, colour, 17)
 
 
         # Draw potential field.
@@ -278,10 +336,11 @@ class MyGame(arcade.Window):
                 # Adjust for zoom factor.
                 min_distance *= self.zoom_factor
                 max_distance *= self.zoom_factor
-                arcade.draw_circle_outline(cx, cy, min_distance, arcade.color.WHITE, 1)
+                arcade.draw_circle_outline(cx, cy, min_distance, arcade.color.LIGHT_BLUE, 0.75)
                 arc_angle = math.degrees(boat.vehicle_model.heading) + 90
-                arcade.draw_arc_outline(cx, cy, 2*max_distance, 2*max_distance, arcade.color.WHITE, 0, 180, 1.5, arc_angle, 30)
+                arcade.draw_arc_outline(cx, cy, 2*max_distance, 2*max_distance, arcade.color.LIGHT_BLUE, 0, 180, 1, arc_angle, 30)
 
+        # Draws the desired heading.
         if self.draw_desired_heading:
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
@@ -291,6 +350,7 @@ class MyGame(arcade.Window):
                 length = 40
                 draw_arrow(cx, cy, desired_hdg, length, arcade.color.RED, thickness=2.0)
 
+        # Draws some debug information.
         if self.debug:
             for boat in self.boat_sprites:
                 if boat.vehicle_model.at_destination:
@@ -308,13 +368,12 @@ class MyGame(arcade.Window):
                 arcade.draw_text(debug, cx, cy + 40, arcade.color.RED, 15)
 
 
-
     def on_update(self, delta_time):
-        """ Movement and game logic """
+        """ Overriden function called on updates.
+        :param delta_time: Unused parameter from base call.
+        """
 
-        # Call update on all sprites (The sprites don't do much in this
-        # example though.)
-
+        # Call update on all sprites.
         self.all_sprite_list.update()
 
     def on_key_press(self, key, modifiers):
@@ -324,6 +383,11 @@ class MyGame(arcade.Window):
             self.up_pressed = True
         elif key == arcade.key.DOWN:
             self.down_pressed = True
+        elif key == arcade.key.ENTER:
+            image = arcade.draw_commands.get_image(x=0, y=0, width=1900, height=1000)
+            self.screenshot_counter += 1
+            image.save("screenshot{}.png".format(self.screenshot_counter), "PNG")
+            print("screenshot{}.png saved!".format(self.screenshot_counter))
         # elif key == arcade.key.LEFT:
         #     self.left_pressed = True
         # elif key == arcade.key.RIGHT:
@@ -344,20 +408,25 @@ class MyGame(arcade.Window):
     def setup(self):
         """ Set up the game and initialize the variables. """
 
-        # Sprite lists
-        # self.background = arcade.load_texture("images/water_background.png")
-        # self.background = arcade.load_texture("images/animated.gif")
         self.load_background_textures()
         self.load_boats()
-        # self.setup_borders(10)
-        # self.setup_manual3()
+
 
     def set_viewport(self, left: float, right: float, bottom: float, top: float):
+        """
+        Sets the viewport for the rendering. Used when scrolling or zooming.
+        :param left, right, bottom, top: Coordinates of the viewport.
+        """
         self.viewport_left, self.viewport_right, self.viewport_bottom, self.viewport_top = left, right, bottom, top
         arcade.set_viewport(left, right, bottom, top)
 
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
+        """
+        Captures mouse scrolling events and calls set_viewport to adjust the view.
+        :param x, y: Position of the scroll event.
+        :param scroll_x, scroll_y: Intensity of the scroll in each dimension.
+        """
         self.viewport_zoom = bound(self.viewport_zoom + (scroll_y / 10.0), 1.0, 5.0)
 
         screen_width = self.all_configs["sim"]["graphics"]["width"]
@@ -376,6 +445,12 @@ class MyGame(arcade.Window):
         self.set_viewport(left, right, bottom, top)
 
     def on_mouse_drag(self, x: float, y: float, dx: float, dy: float, buttons: int, modifiers: int):
+        """
+        Similar to on_mouse_scroll, but capturing mouse drag events.
+        :param x, y: Initial drag coordinates.
+        :param dx, dy: Change in drag coordinates.
+        :param buttons, modifiers: Buttons and modifiers (SHIFT, CTRL etc) captured.
+        """
         screen_width = self.all_configs["sim"]["graphics"]["width"]
         screen_height = self.all_configs["sim"]["graphics"]["height"]
         left, right, bottom, top = self.viewport_left, self.viewport_right, self.viewport_bottom, self.viewport_top
@@ -392,14 +467,28 @@ class MyGame(arcade.Window):
 
         self.set_viewport(left, right, bottom, top)
 
+
+#####################################
+############# SCRIPTS ###############
+#####################################
+
+# FIXME: Those scripts should be in their own file.
+
 def run_sim(sim):
+    """
+    Simple simulation loop.
+    :param sim: Sim instance running the headless simulation.
+    """
     while sim.is_running:
         for boat in sim.boats:
             boat.simulate_kinematics()
 
 
 def run_boat_experiments(config_file):
-    """ Main method """
+    """
+    Runs boat experiments using the headless sim. Runs multiple batches of experiments
+    in the shown order.
+    """
     print("Loading JSON config.")
     with open(config_file) as file:
         data = json.load(file)
@@ -407,9 +496,8 @@ def run_boat_experiments(config_file):
     headless = data["sim"]["graphics"]["headless"]
     if not headless:
         return
-
     # Fixed max_g experiment. We define max_g as 40.
-    max_g = 25
+    max_g = 20
     # Run one normal plus one subjective experiment per strategy. One objective at the end. Total of 9 per trial.
     strategies = data['experiments']['1']['dialogue_results'].keys()
     experiments = data['experiments']
@@ -417,7 +505,7 @@ def run_boat_experiments(config_file):
     simulations_ran = 0
     total_simulations = 100
     for experiment_id in experiments.keys():
-        results_path = "results/experiment{}/".format(experiment_id)
+        results_path = "results_g{}/experiment{}/".format(max_g*2, experiment_id)
         if not os.path.exists(results_path):
             os.makedirs(results_path)
         boats_dict = experiments[experiment_id]['boats']
@@ -451,11 +539,11 @@ def run_boat_experiments(config_file):
             str(datetime.timedelta(seconds=iteration_time)), total_time, estimated_time_left))
 
 
-
-
-
 def run_varied_budgets(config_file):
-    """ Main method """
+    """
+    This is a similar script to run_boat_experiments, except that it runs a much larger
+    experiment, with one more dimension (varied privacy budgets).
+    """
     with open(config_file) as file:
         data = json.load(file)
     headless = data["sim"]["graphics"]["headless"]
@@ -500,85 +588,37 @@ def run_varied_budgets(config_file):
         return results_path
 
     else:
-        window = MyGame(config_file)
+        window = BoatGUI(config_file)
         window.setup()
         arcade.run()
 
-# def run_varied_budgets(config_file):
-#     """ Main method """
-#     with open(config_file) as file:
-#         data = json.load(file)
-#     headless = data["sim"]["graphics"]["headless"]
-#     num_strategies = len(data["sim"]["dialogue_results"])
-#     num_budgets = len(data["sim"]["dialogue_results"]["ArgStrategy.RANDOM_CHOICE_PRIVATE"])
-#     start = time.time()
-#     now = datetime.datetime.now()
-#     date_string = now.strftime("%d%b-%H%M")
-#     results_path = "results/multi_strategy-{}/".format(date_string)
-#     simulations_ran = 0
-#     total_simulations = 320
-#     if headless:
-#         boats_dict = data["sim"]["boats"]
-#         for strategy in data["sim"]["dialogue_results"].keys():
-#             # # FIXME: Temporary
-#             # if "RANDOM" not in strategy:
-#             #     continue
-#             path = results_path+strategy
-#             if not os.path.exists(path):
-#                 os.makedirs(path)
-#             for budget in data["sim"]["dialogue_results"][strategy]:
-#                 sim_start = time.time()
-#                 simulations_ran += 1
-#                 sim = Sim(data["sim"], path, budget=int(budget), strategy=strategy)
-#                 sim.load_boats(boats_dict)
-#                 frame_counter = 0
-#                 while sim.is_running:
-#                     frame_counter += 1
-#                     # if frame_counter % 1000 == 0:
-#                     #     # print("Simulated {} frames.".format(frame_counter))
-#                     for boat in sim.boats:
-#                         boat.simulate_kinematics()
-#                 sim_end = time.time()
-#                 print("Simulated {} with budget {}.".format(strategy, budget))
-#                 iteration_time = sim_end - sim_start
-#                 estimated_time_left = str(datetime.timedelta(seconds=iteration_time * (total_simulations - simulations_ran)))
-#                 total_time = str(datetime.timedelta(seconds=sim_end - start))
-#                 print("Time elapsed: {}. Total time elapsed: {}. Estimated remaining time: {}".format(
-#                     str(datetime.timedelta(seconds=iteration_time)), total_time, estimated_time_left))
-#         end = time.time()
-#         print("Time elapsed: {:.2f} seconds".format(end - start))
-#         return results_path
-#
-#     else:
-#         window = MyGame(config_file)
-#         window.setup()
-#         arcade.run()
+def run(config_file):
+    """ This is a simple script that runs the simulator in either headless or GUI mode."""
+    with open(config_file) as file:
+        data = json.load(file)
+    headless = data["sim"]["graphics"]["headless"]
+    start = time.time()
+    if headless:
+        boats_dict = data["sim"]["boats"]
+        sim = Sim(data["sim"])
+        sim.load_boats(boats_dict)
+        frame_counter = 0
+        while sim.is_running:
+            frame_counter += 1
 
+            if frame_counter % 1000 == 0:
+                print("Simulated {} frames.".format(frame_counter))
+            for boat in sim.boats:
+                boat.simulate_kinematics()
+        end = time.time()
+        print("Time elapsed: {:.2f} seconds".format(end - start))
+        return sim.results_filename
 
-# def run(config_file):
-#     """ Main method """
-#     with open(config_file) as file:
-#         data = json.load(file)
-#     headless = data["sim"]["graphics"]["headless"]
-#     start = time.time()
-#     if headless:
-#         boats_dict = data["sim"]["boats"]
-#         sim = Sim(data["sim"])
-#         sim.load_boats(boats_dict)
-#         frame_counter = 0
-#         while sim.is_running:
-#             frame_counter += 1
-#             if frame_counter % 1000 == 0:
-#                 print("Simulated {} frames.".format(frame_counter))
-#             for boat in sim.boats:
-#                 boat.simulate_kinematics()
-#         end = time.time()
-#         print("Time elapsed: {:.2f} seconds".format(end - start))
-#         return sim.results_filename
-#
-#     else:
-#         window = MyGame(config_file)
-#         window.setup()
-#         arcade.run()
+    else:
+        window = BoatGUI(config_file)
+        window.setup()
+        arcade.run()
 
+# Sample call of a GUI run.
+run("scenarios/scenario-16-boats-19May-151120.json")
 

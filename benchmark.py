@@ -150,7 +150,7 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
         with open('experiment_id', "r") as id_file:
             experiment_id = int(id_file.read())
             id_file.close()
-        base_queue = AgentQueue(ArgStrategy.ALL_ARGS, culture=BoatCulture(),
+        base_queue = AgentQueue(ArgStrategy.ALL_ARGS, culture=RandomCulture(),#BoatCulture(),
                                 size=queue_size,
                                 privacy_budget=max_privacy_budget)
         print("\nExperiment {}".format(experiment_id))
@@ -285,125 +285,126 @@ def benchmark_same_strategy(num_experiments, queue_size, max_privacy_budget, tes
         with open('experiment_id', "w") as id_file:
             id_file.write(str(experiment_id + 1))
             id_file.close()
-        print("Saving to JSON...")
-        with open(dialogues_path+'experiment_data.json', 'w') as json_file:
-            json.dump(experiment_data, json_file, indent=2)
+        if experiment_id % 100 == 0:
+            print("Saving to JSON...")
+            with open(dialogues_path+'experiment_data.json', 'w') as json_file:
+                json.dump(overall_data, json_file, indent=2)
 
 
     t1 = time.time() - t0
     print("Time elapsed: {}".format(t1))
 
-    figure, axs = plt.subplots(2, 4)
-    # # plt.xticks(rotation=90)
-    # for row in axs:
-    #     for ax in row:
-    #         ax.xticks(rotation=90)
-    ax_random_tau = axs[0, 0]
-    ax_random_unf = axs[1, 0]
-    ax_least_cost_tau = axs[0, 1]
-    ax_least_cost_unf = axs[1, 1]
-    ax_least_attackers_tau = axs[0, 2]
-    ax_least_attackers_unf = axs[1, 2]
-    ax_most_attacks_tau = axs[0, 3]
-    ax_most_attacks_unf = axs[1, 3]
-
-    ######################
-    # RANDOM #############
-    ######################
-
-    # figure_random_tau, ax_random_tau = plt.subplots()
-    ax_random_tau.set_title("Random private x non-private\n({} iterations. {} agents in queue. )".format(
-        num_experiments, queue_size
-    ))
-    ax_random_tau.boxplot(agg_results_tau_random, showfliers=False, showmeans=True)
-    # ax.legend(labels)
-    ax_random_tau.set_ylabel("Kendall tau value")
-    if test_type == 'ordering':
-        ax_random_tau.axhline(y=1.0, color='r')
-        ax_random_tau.axhline(y=0.0, color='g')
-        ax_random_tau.set_ylim(top=1.05)
-
-    # figure_random_unf, ax_random_unf = plt.subplots()
-    # ax2 = ax.twinx()
-    ax_random_unf.set_ylabel("Rate of unfair interactions")
-    ax_random_unf.set_title("Interactions ended by shortness of budget.\n(random)")
-    ax_random_unf.boxplot(agg_results_local_unf_random, showfliers=False, showmeans=True, patch_artist=True)
-    ax_random_unf.set_ylim(top=0.55)
-
-    ######################
-    # LEAST ATTACKERS ####
-    ######################
-
-    # figure_least_attackers_tau, ax_least_attackers_tau = plt.subplots()
-    ax_least_attackers_tau.set_title(
-        "Least attackers private x non-private\n({} iterations. {} agents in queue. )".format(
-            num_experiments, queue_size
-        ))
-    ax_least_attackers_tau.boxplot(agg_results_tau_least_attackers, showfliers=False, showmeans=True)
-    # ax.legend(labels)
-    ax_least_attackers_tau.set_ylabel("Kendall tau value")
-    if test_type == 'ordering':
-        ax_least_attackers_tau.axhline(y=1.0, color='r')
-        ax_least_attackers_tau.axhline(y=0.0, color='g')
-        ax_least_attackers_tau.set_ylim(top=1.05)
-
-    # figure_least_attackers_unf, ax_least_attackers_unf = plt.subplots()
-    # ax2 = ax.twinx()
-    ax_least_attackers_unf.set_ylabel("Rate of unfair interactions")
-    ax_least_attackers_unf.set_title("Interactions ended by shortness of budget.\n(least attackers)")
-    ax_least_attackers_unf.boxplot(agg_results_local_unf_least_attackers, showfliers=False, showmeans=True,
-                                   patch_artist=True)
-    ax_least_attackers_unf.set_ylim(top=0.55)
-
-    ######################
-    # LEAST COST #########
-    ######################
-
-    # figure_least_cost_tau, ax_least_cost_tau = plt.subplots()
-    ax_least_cost_tau.set_title(
-        "Least cost private x non-private\n({} iterations. {} agents in queue. )".format(
-            num_experiments, queue_size
-        ))
-    ax_least_cost_tau.boxplot(agg_results_tau_least_cost, showfliers=False, showmeans=True)
-    # ax.legend(labels)
-    ax_least_cost_tau.set_ylabel("Kendall tau value")
-    if test_type == 'ordering':
-        ax_least_cost_tau.axhline(y=1.0, color='r')
-        ax_least_cost_tau.axhline(y=0.0, color='g')
-        ax_least_cost_tau.set_ylim(top=1.05)
-
-    # figure_least_cost_unf, ax_least_cost_unf = plt.subplots()
-    # ax2 = ax.twinx()
-    ax_least_cost_unf.set_ylabel("Rate of unfair interactions")
-    ax_least_cost_unf.set_title("Interactions ended by shortness of budget.\n(least cost)")
-    ax_least_cost_unf.boxplot(agg_results_local_unf_least_cost, showfliers=False, showmeans=True,
-                              patch_artist=True)
-    ax_least_cost_unf.set_ylim(top=0.55)
-
-    ######################
-    # MOST ATTACKS #######
-    ######################
-
-    # figure_most_attacks_tau, ax_most_attacks_tau = plt.subplots()
-    ax_most_attacks_tau.set_title("Most attacks private x non-private\n({} iterations. {} agents in queue. )".format(
-        num_experiments, queue_size
-    ))
-    ax_most_attacks_tau.boxplot(agg_results_tau_most_attacks, showfliers=False, showmeans=True)
-    # ax.legend(labels)
-    ax_most_attacks_tau.set_ylabel("Kendall tau value")
-    if test_type == 'ordering':
-        ax_most_attacks_tau.axhline(y=1.0, color='r')
-        ax_most_attacks_tau.axhline(y=0.0, color='g')
-        ax_most_attacks_tau.set_ylim(top=1.05)
-
-    # figure_most_attacks_unf, ax_most_attacks_unf = plt.subplots()
-    # ax2 = ax.twinx()
-    ax_most_attacks_unf.set_ylabel("Rate of unfair interactions")
-    ax_most_attacks_unf.set_title("Interactions ended by shortness of budget.\n(most attackers)")
-    ax_most_attacks_unf.boxplot(agg_results_local_unf_most_attacks, showfliers=False, showmeans=True, patch_artist=True)
-    ax_most_attacks_unf.set_ylim(top=0.55)
-
-    plt.show()
+    # figure, axs = plt.subplots(2, 4)
+    # # # plt.xticks(rotation=90)
+    # # for row in axs:
+    # #     for ax in row:
+    # #         ax.xticks(rotation=90)
+    # ax_random_tau = axs[0, 0]
+    # ax_random_unf = axs[1, 0]
+    # ax_least_cost_tau = axs[0, 1]
+    # ax_least_cost_unf = axs[1, 1]
+    # ax_least_attackers_tau = axs[0, 2]
+    # ax_least_attackers_unf = axs[1, 2]
+    # ax_most_attacks_tau = axs[0, 3]
+    # ax_most_attacks_unf = axs[1, 3]
+    #
+    # ######################
+    # # RANDOM #############
+    # ######################
+    #
+    # # figure_random_tau, ax_random_tau = plt.subplots()
+    # ax_random_tau.set_title("Random private x non-private\n({} iterations. {} agents in queue. )".format(
+    #     num_experiments, queue_size
+    # ))
+    # ax_random_tau.boxplot(agg_results_tau_random, showfliers=False, showmeans=True)
+    # # ax.legend(labels)
+    # ax_random_tau.set_ylabel("Kendall tau value")
+    # if test_type == 'ordering':
+    #     ax_random_tau.axhline(y=1.0, color='r')
+    #     ax_random_tau.axhline(y=0.0, color='g')
+    #     ax_random_tau.set_ylim(top=1.05)
+    #
+    # # figure_random_unf, ax_random_unf = plt.subplots()
+    # # ax2 = ax.twinx()
+    # ax_random_unf.set_ylabel("Rate of unfair interactions")
+    # ax_random_unf.set_title("Interactions ended by shortness of budget.\n(random)")
+    # ax_random_unf.boxplot(agg_results_local_unf_random, showfliers=False, showmeans=True, patch_artist=True)
+    # ax_random_unf.set_ylim(top=0.55)
+    #
+    # ######################
+    # # LEAST ATTACKERS ####
+    # ######################
+    #
+    # # figure_least_attackers_tau, ax_least_attackers_tau = plt.subplots()
+    # ax_least_attackers_tau.set_title(
+    #     "Least attackers private x non-private\n({} iterations. {} agents in queue. )".format(
+    #         num_experiments, queue_size
+    #     ))
+    # ax_least_attackers_tau.boxplot(agg_results_tau_least_attackers, showfliers=False, showmeans=True)
+    # # ax.legend(labels)
+    # ax_least_attackers_tau.set_ylabel("Kendall tau value")
+    # if test_type == 'ordering':
+    #     ax_least_attackers_tau.axhline(y=1.0, color='r')
+    #     ax_least_attackers_tau.axhline(y=0.0, color='g')
+    #     ax_least_attackers_tau.set_ylim(top=1.05)
+    #
+    # # figure_least_attackers_unf, ax_least_attackers_unf = plt.subplots()
+    # # ax2 = ax.twinx()
+    # ax_least_attackers_unf.set_ylabel("Rate of unfair interactions")
+    # ax_least_attackers_unf.set_title("Interactions ended by shortness of budget.\n(least attackers)")
+    # ax_least_attackers_unf.boxplot(agg_results_local_unf_least_attackers, showfliers=False, showmeans=True,
+    #                                patch_artist=True)
+    # ax_least_attackers_unf.set_ylim(top=0.55)
+    #
+    # ######################
+    # # LEAST COST #########
+    # ######################
+    #
+    # # figure_least_cost_tau, ax_least_cost_tau = plt.subplots()
+    # ax_least_cost_tau.set_title(
+    #     "Least cost private x non-private\n({} iterations. {} agents in queue. )".format(
+    #         num_experiments, queue_size
+    #     ))
+    # ax_least_cost_tau.boxplot(agg_results_tau_least_cost, showfliers=False, showmeans=True)
+    # # ax.legend(labels)
+    # ax_least_cost_tau.set_ylabel("Kendall tau value")
+    # if test_type == 'ordering':
+    #     ax_least_cost_tau.axhline(y=1.0, color='r')
+    #     ax_least_cost_tau.axhline(y=0.0, color='g')
+    #     ax_least_cost_tau.set_ylim(top=1.05)
+    #
+    # # figure_least_cost_unf, ax_least_cost_unf = plt.subplots()
+    # # ax2 = ax.twinx()
+    # ax_least_cost_unf.set_ylabel("Rate of unfair interactions")
+    # ax_least_cost_unf.set_title("Interactions ended by shortness of budget.\n(least cost)")
+    # ax_least_cost_unf.boxplot(agg_results_local_unf_least_cost, showfliers=False, showmeans=True,
+    #                           patch_artist=True)
+    # ax_least_cost_unf.set_ylim(top=0.55)
+    #
+    # ######################
+    # # MOST ATTACKS #######
+    # ######################
+    #
+    # # figure_most_attacks_tau, ax_most_attacks_tau = plt.subplots()
+    # ax_most_attacks_tau.set_title("Most attacks private x non-private\n({} iterations. {} agents in queue. )".format(
+    #     num_experiments, queue_size
+    # ))
+    # ax_most_attacks_tau.boxplot(agg_results_tau_most_attacks, showfliers=False, showmeans=True)
+    # # ax.legend(labels)
+    # ax_most_attacks_tau.set_ylabel("Kendall tau value")
+    # if test_type == 'ordering':
+    #     ax_most_attacks_tau.axhline(y=1.0, color='r')
+    #     ax_most_attacks_tau.axhline(y=0.0, color='g')
+    #     ax_most_attacks_tau.set_ylim(top=1.05)
+    #
+    # # figure_most_attacks_unf, ax_most_attacks_unf = plt.subplots()
+    # # ax2 = ax.twinx()
+    # ax_most_attacks_unf.set_ylabel("Rate of unfair interactions")
+    # ax_most_attacks_unf.set_title("Interactions ended by shortness of budget.\n(most attackers)")
+    # ax_most_attacks_unf.boxplot(agg_results_local_unf_most_attacks, showfliers=False, showmeans=True, patch_artist=True)
+    # ax_most_attacks_unf.set_ylim(top=0.55)
+    #
+    # plt.show()
 
 
 def benchmark(num_iterations, queue_size, privacy_budget, test_type='ordering'):
@@ -600,4 +601,4 @@ def benchmark(num_iterations, queue_size, privacy_budget, test_type='ordering'):
 
 
 # benchmark(num_iterations = 30, queue_size = 20, privacy_budget = 10, test_type='matrix')
-benchmark_same_strategy(num_experiments=100, queue_size=16, max_privacy_budget=60, test_type='matrix')
+benchmark_same_strategy(num_experiments=2000, queue_size=50, max_privacy_budget=-1, test_type='matrix')

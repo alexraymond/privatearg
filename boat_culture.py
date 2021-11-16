@@ -4,6 +4,9 @@ from argument import Argument, PrivateArgument, ArgumentationFramework
 from boat_agent import BoatAgent
 import random
 
+"""
+List of Enums used in the BoatCulture properties. Read more below.
+"""
 
 class VehicleAge(IntEnum):
     BrandNew = auto()
@@ -101,15 +104,21 @@ class SuperVIP(IntEnum):
 
 
 def always_true(*args, **kwargs):
+    # To be used as a function pointer.
     return True
 
 
 class BoatCulture(Culture):
+    """
+    A practical instantiation of a Culture, using rules created for a Boat scenario.
+    Each agent has a number of different properties (whose values are defined in the enums above).
+    The create_arguments and define_attacks functions define the structure of the argumentation framework.
+    """
     def __init__(self):
         self.ids = {}
         super().__init__()
         self.name = "Boat Culture"
-        self.raw_bw_framework = None
+        self.raw_alteroceptive_framework = None
 
         self.properties = {"BoatCategory": BoatCategory.Civilian,
                            "TaskedStatus": TaskedStatus.Returning,
@@ -127,7 +136,8 @@ class BoatCulture(Culture):
 
         self.create_arguments()
         self.define_attacks()
-        self.generate_bw_framework()
+        # FIXME: Both this call and the RandomCulture one must be merged.
+        self.generate_alteroceptive_framework()
 
     def create_arguments(self):
         """
@@ -619,15 +629,15 @@ class BoatCulture(Culture):
         # Attacks to has_emergency.
         attack(ID["super_vip"], ID["has_emergency"])
 
-    def generate_bw_framework(self):
+    def generate_alteroceptive_framework(self):
         """
-        This function generates and populates a black-and-white framework (forced bipartition) from an existing culture.
-        A black-and-white framework is built with the following rules:
+        This function generates and populates an alteroceptive framework (forced bipartition) from an existing culture.
+        An alteroceptive framework is built with the following rules:
         1. Every argument is represented by 4 nodes, black and white X hypothesis and verified.
         2. Every attack between arguments is reconstructed between nodes of different colours.
         :return: A flat black-and-white framework.
         """
-        self.raw_bw_framework = ArgumentationFramework()
+        self.raw_alteroceptive_framework = ArgumentationFramework()
         for argument in self.AF.arguments():
             # Even indices for defender, odd for challenger.
             # Adding hypothetical arguments.
@@ -652,19 +662,19 @@ class BoatCulture(Culture):
             black_verified.set_verifier(f_verifier)
             white_verified.set_verifier(f_verifier)
 
-            self.raw_bw_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
+            self.raw_alteroceptive_framework.add_arguments([black_hypothesis, white_hypothesis, black_verified, white_verified])
 
             # Adding mutual attacks between contradictory hypotheses.
-            self.raw_bw_framework.add_attack(black_hypothesis.id(), white_hypothesis.id())
-            self.raw_bw_framework.add_attack(white_hypothesis.id(), black_hypothesis.id())
+            self.raw_alteroceptive_framework.add_attack(black_hypothesis.id(), white_hypothesis.id())
+            self.raw_alteroceptive_framework.add_attack(white_hypothesis.id(), black_hypothesis.id())
 
             # Adding mutual attacks between contradictory verified arguments.
-            self.raw_bw_framework.add_attack(black_verified.id(), white_verified.id())
-            self.raw_bw_framework.add_attack(white_verified.id(), black_verified.id())
+            self.raw_alteroceptive_framework.add_attack(black_verified.id(), white_verified.id())
+            self.raw_alteroceptive_framework.add_attack(white_verified.id(), black_verified.id())
 
             # Adding attacks between immediate verified and hypothetical arguments.
-            self.raw_bw_framework.add_attack(black_verified.id(), white_hypothesis.id())
-            self.raw_bw_framework.add_attack(white_verified.id(), black_hypothesis.id())
+            self.raw_alteroceptive_framework.add_attack(black_verified.id(), white_hypothesis.id())
+            self.raw_alteroceptive_framework.add_attack(white_verified.id(), black_hypothesis.id())
 
         # Adding attacks between different arguments in original framework.
         # Each hypothesis attacks both the attacked hypothesis and verified arguments.
@@ -678,7 +688,7 @@ class BoatCulture(Culture):
                 white_hypothesis_attacked_id = attacked_id * 4 + 1
                 black_verified_attacked_id = attacked_id * 4 + 2
                 white_verified_attacked_id = attacked_id * 4 + 3
-                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_hypothesis_attacked_id)
-                self.raw_bw_framework.add_attack(black_hypothesis_attacker_id, white_verified_attacked_id)
-                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_hypothesis_attacked_id)
-                self.raw_bw_framework.add_attack(white_hypothesis_attacker_id, black_verified_attacked_id)
+                self.raw_alteroceptive_framework.add_attack(black_hypothesis_attacker_id, white_hypothesis_attacked_id)
+                self.raw_alteroceptive_framework.add_attack(black_hypothesis_attacker_id, white_verified_attacked_id)
+                self.raw_alteroceptive_framework.add_attack(white_hypothesis_attacker_id, black_hypothesis_attacked_id)
+                self.raw_alteroceptive_framework.add_attack(white_hypothesis_attacker_id, black_verified_attacked_id)

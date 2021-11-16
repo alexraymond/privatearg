@@ -19,8 +19,6 @@ from agent import Agent
 from boat_agent import BoatAgent
 
 
-
-
 class ArgStrategy(Enum):
     RANDOM_CHOICE_NO_PRIVACY = 1
     RANDOM_CHOICE_PRIVATE = 2
@@ -35,17 +33,27 @@ class ArgStrategy(Enum):
 
 
 class AgentQueue:
+    """
+    Contains a collection of agents in a queue, where they will perform pairwise interactions.
+    """
     TOTAL_YES = 0
     TOTAL_NO = 0
     TOTAL_BAD = 0
 
     def __init__(self, strategy: ArgStrategy, culture=None, size=30, privacy_budget=10):
+        """
+        Initialises the queue.
+        :param strategy: The strategy used by all agents.
+        :param culture: The culture shared by all agents.
+        :param size: The size of the queue.
+        :param privacy_budget: Privacy budget of all agents.
+        """
         self.queue = []
         self.size = size
         self.culture = RandomCulture() if culture is None else copy.deepcopy(culture)
         self.init_queue(privacy_budget)
         self.strategy = strategy
-        self.bw_framework = None
+        self.alteroceptive_framework = None
         self.rate_local_unfairness = 0
         self.string = ""
 
@@ -96,9 +104,9 @@ class AgentQueue:
         :return: Sorted ground truth.
         """
         ground_truth = copy.deepcopy(self)
-        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        ground_truth.alteroceptive_framework = ground_truth.create_alteroceptive_framework()
         if debug:
-            print("BASE BW FRAMEWORK:\n{}".format(ground_truth.bw_framework))
+            print("BASE BW FRAMEWORK:\n{}".format(ground_truth.alteroceptive_framework))
         status_quo = {}
         for i in range(0, len(ground_truth.queue)):
             for j in range(0, len(ground_truth.queue)):
@@ -106,28 +114,27 @@ class AgentQueue:
                     continue
                 defender = ground_truth.queue[i]
                 challenger = ground_truth.queue[j]
-                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+                alteroceptive_framework = copy.deepcopy(ground_truth.alteroceptive_framework)
 
                 to_remove = []
-                for argument_id in bw_framework.all_arguments:
-                    argument_obj = bw_framework.argument(argument_id)
+                for argument_id in alteroceptive_framework.all_arguments:
+                    argument_obj = alteroceptive_framework.argument(argument_id)
                     if is_black_arg(argument_id):
                         verified = argument_obj.verify(defender, challenger)
                     else:
                         verified = argument_obj.verify(challenger, defender)
                     if not verified:
                         to_remove.append(argument_id)
-                        # if is_verified_arg(argument_id):
-                        #     to_remove.append(argument_id - 2)
+
 
                 for argument_id in to_remove:
-                    bw_framework.remove_argument(argument_id)
+                    alteroceptive_framework.remove_argument(argument_id)
 
-                solver_result = bw_framework.run_solver(semantics="DS-PR", arg_str="1")
+                solver_result = alteroceptive_framework.run_solver(semantics="DS-PR", arg_str="1")
                 pair = (defender.id, challenger.id)
                 if "YES" in solver_result:
                     # Challenger wins.
-                    attackers_of_1 = bw_framework.arguments_that_attack(1)
+                    attackers_of_1 = alteroceptive_framework.arguments_that_attack(1)
 
                     anti_pair = (challenger.id, defender.id)
                     self.TOTAL_YES += 1
@@ -136,7 +143,7 @@ class AgentQueue:
                     status_quo[pair] = False
                 elif "NO" in solver_result:
                     # Defender wins.
-                    attackers_of_1 = bw_framework.arguments_that_attack(1)
+                    attackers_of_1 = alteroceptive_framework.arguments_that_attack(1)
                     # pair = (challenger.id, defender.id)
                     anti_pair = (defender.id, challenger.id)
                     self.TOTAL_NO += 1
@@ -147,7 +154,7 @@ class AgentQueue:
                     print("Error computing extensions")
 
                 # logging.debug("FRAMEWORK FOR PAIR B{} W{}:".format(defender.id, challenger.id))
-                # logging.debug(bw_framework.to_aspartix_text())
+                # logging.debug(alteroceptive_framework.to_aspartix_text())
                 # status_quo[pair] = False
                 # status_quo[anti_pair] = True
 
@@ -165,7 +172,7 @@ class AgentQueue:
         :return: Sorted ground truth.
         """
         ground_truth = copy.deepcopy(self)
-        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        ground_truth.alteroceptive_framework = ground_truth.create_alteroceptive_framework()
         winners = {}
         for i in range(0, len(ground_truth.queue)):
             for j in range(0, len(ground_truth.queue)):
@@ -173,11 +180,11 @@ class AgentQueue:
                     continue
                 defender = ground_truth.queue[i]
                 challenger = ground_truth.queue[j]
-                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+                alteroceptive_framework = copy.deepcopy(ground_truth.alteroceptive_framework)
 
                 to_remove = []
-                for argument_id in bw_framework.all_arguments:
-                    argument_obj = bw_framework.argument(argument_id)
+                for argument_id in alteroceptive_framework.all_arguments:
+                    argument_obj = alteroceptive_framework.argument(argument_id)
                     if is_black_arg(argument_id):
                         verified = argument_obj.verify(defender, challenger)
                     else:
@@ -188,9 +195,9 @@ class AgentQueue:
                         #     to_remove.append(argument_id - 2)
 
                 for argument_id in to_remove:
-                    bw_framework.remove_argument(argument_id)
+                    alteroceptive_framework.remove_argument(argument_id)
 
-                solver_result = bw_framework.run_solver(semantics="DS-PR", arg_str="1")
+                solver_result = alteroceptive_framework.run_solver(semantics="DS-PR", arg_str="1")
                 if "YES" in solver_result:
                     # Challenger wins.
                     winners[(defender.id, challenger.id)] = challenger.id
@@ -211,7 +218,7 @@ class AgentQueue:
         :return: Sorted ground truth.
         """
         ground_truth = copy.deepcopy(self)
-        ground_truth.bw_framework = ground_truth.create_bw_framework()
+        ground_truth.alteroceptive_framework = ground_truth.create_alteroceptive_framework()
         winners = {}
         pairs = []
         for i in range(0, len(ground_truth.queue)):
@@ -220,11 +227,11 @@ class AgentQueue:
                     continue
                 defender = ground_truth.queue[i]
                 challenger = ground_truth.queue[j]
-                bw_framework = copy.deepcopy(ground_truth.bw_framework)
+                alteroceptive_framework = copy.deepcopy(ground_truth.alteroceptive_framework)
 
                 to_remove = []
-                for argument_id in bw_framework.all_arguments:
-                    argument_obj = bw_framework.argument(argument_id)
+                for argument_id in alteroceptive_framework.all_arguments:
+                    argument_obj = alteroceptive_framework.argument(argument_id)
                     if is_black_arg(argument_id):
                         verified = argument_obj.verify(defender, challenger)
                     else:
@@ -235,11 +242,11 @@ class AgentQueue:
                         #     to_remove.append(argument_id - 2)
 
                 for argument_id in to_remove:
-                    bw_framework.remove_argument(argument_id)
+                    alteroceptive_framework.remove_argument(argument_id)
 
                 filename = "temp_frameworks/{}-{}.apx".format(defender.id, challenger.id)
                 with open(filename, 'w') as file:
-                    file.write(bw_framework.to_aspartix_id())
+                    file.write(alteroceptive_framework.to_aspartix_id())
                 pairs.append((defender.id, challenger.id))
 
         def run_solver_detached(pair):
@@ -298,7 +305,7 @@ class AgentQueue:
 
     def interact_all_matrix(self):
         logging.debug(self.queue_string())
-        self.bw_framework = self.create_bw_framework()
+        self.alteroceptive_framework = self.create_alteroceptive_framework()
         interaction_count = 0
         winners = {}
 
@@ -339,7 +346,7 @@ class AgentQueue:
 
         logging.debug(self.queue_string())
         stable_queue = False
-        self.bw_framework = self.create_bw_framework()
+        self.alteroceptive_framework = self.create_alteroceptive_framework()
         interaction_count = 0
         swaps = 0
         while not stable_queue:
@@ -368,45 +375,25 @@ class AgentQueue:
         self.string = self.queue_string()
         return swaps
 
-    def create_bw_framework(self):
+    def create_alteroceptive_framework(self):
         """
         Prunes unverified arguments out of a black-and-white framework.
         :param defender: Agent representing black arguments.
         :param challenger: Agent representing white arguments.
         :return: Black-and-white framework with unverified arguments removed.
         """
-        bw_framework = copy.deepcopy(self.culture.raw_bw_framework)
+        alteroceptive_framework = copy.deepcopy(self.culture.raw_alteroceptive_framework)
 
         # Delete defender's motion since challenger always proposes motion.
-        bw_framework.remove_argument(0)
+        alteroceptive_framework.remove_argument(0)
         # Delete motion verifiers.
-        bw_framework.remove_argument(2)
-        bw_framework.remove_argument(3)
+        alteroceptive_framework.remove_argument(2)
+        alteroceptive_framework.remove_argument(3)
 
-        bw_framework.rank_least_attacked_arguments()
-        bw_framework.rank_strongest_attacker_arguments()
+        alteroceptive_framework.rank_least_attacked_arguments()
+        alteroceptive_framework.rank_strongest_attacker_arguments()
 
-        # bw_framework.compute_rank_arguments_occurrence()
-
-        # black_unverified = []
-        # white_unverified = []
-        # for argument_obj in self.culture.argumentation_framework.arguments():
-        #     if not argument_obj.verify(defender, challenger):
-        #         # Unverified by black.
-        #         black_unverified.append(argument_obj.id())
-        #     if not argument_obj.verify(challenger, defender):
-        #         # Unverified by white.
-        #         white_unverified.append(argument_obj.id())
-        #
-        # for argument_id in black_unverified:
-        #     black_id = argument_id * 4
-        #     bw_framework.remove_argument(black_id)
-        #
-        # for argument_id in white_unverified:
-        #     white_id = argument_id * 4 + 1
-        #     bw_framework.remove_argument(white_id)
-
-        return bw_framework
+        return alteroceptive_framework
 
     def interact_pair(self, defender: Agent, challenger: Agent):
         """
@@ -432,7 +419,7 @@ class AgentQueue:
                                                                  challenger.properties[property]))
 
         # Black = defender. White = challenger.
-        # bw_framework = self.create_bw_framework(defender, challenger)
+        # alteroceptive_framework = self.create_alteroceptive_framework(defender, challenger)
 
         defender.argued_with.append(challenger)
         challenger.argued_with.append(defender)
@@ -471,15 +458,15 @@ class AgentQueue:
             all_used_arguments = used_arguments[player] + used_arguments[opponent]
             forbidden_arguments = set(all_used_arguments)
             # Cannot pick argument that is attacked by previously used argument.
-            forbidden_arguments.update(self.bw_framework.arguments_attacked_by_list(all_used_arguments))
-            unverified_argument_ids = self.bw_framework.arguments_that_attack(last_argument[opponent])
+            forbidden_arguments.update(self.alteroceptive_framework.arguments_attacked_by_list(all_used_arguments))
+            unverified_argument_ids = self.alteroceptive_framework.arguments_that_attack(last_argument[opponent])
             unverified_argument_ids = unverified_argument_ids.difference(forbidden_arguments)
             if self.strategy != ArgStrategy.ALL_ARGS:
                 logging.debug(
                     "Possible attackers to argument {}: {}".format(last_argument[opponent], unverified_argument_ids))
             verified_argument_ids = []
             for argument_id in unverified_argument_ids:
-                argument_obj = self.bw_framework.argument(argument_id)
+                argument_obj = self.alteroceptive_framework.argument(argument_id)
                 # We will verify each argument using their respective verifier function.
                 if (player == defender and is_black_arg(argument_id)) or \
                         (player == challenger and is_white_arg(argument_id)):
@@ -500,7 +487,7 @@ class AgentQueue:
             affordable_argument_ids = []
             affordable_str = "Affordable arguments cost: "
             for argument_id in verified_argument_ids:
-                argument_obj = self.bw_framework.argument(argument_id)
+                argument_obj = self.alteroceptive_framework.argument(argument_id)
                 if argument_obj.privacy_cost <= privacy_budget[player]:
                     player_is_defender = (player == defender)
                     if player_is_defender and is_black_arg(
@@ -529,7 +516,7 @@ class AgentQueue:
                 logging.debug("Agent {} randomly chose argument {}".format(player.id, rebuttal_id))
                 last_argument[player] = [rebuttal_id]
                 used_arguments[player].append(rebuttal_id)
-                rebuttal_obj = self.bw_framework.argument(rebuttal_id)
+                rebuttal_obj = self.alteroceptive_framework.argument(rebuttal_id)
                 # print("Agent {}: {}".format(player.id, rebuttal_obj.descriptive_text))
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
@@ -552,9 +539,9 @@ class AgentQueue:
                     logging.debug("Used arguments: {}".format(used_arguments[winner]))
                     break
                 # Deterministic choice with cheaper arguments first.
-                cheaper_argument_obj = self.bw_framework.argument(affordable_argument_ids[0])
+                cheaper_argument_obj = self.alteroceptive_framework.argument(affordable_argument_ids[0])
                 for arg_id in affordable_argument_ids:
-                    arg_obj = self.bw_framework.argument(arg_id)
+                    arg_obj = self.alteroceptive_framework.argument(arg_id)
                     if arg_obj.privacy_cost < cheaper_argument_obj.privacy_cost:
                         cheaper_argument_obj = arg_obj
                 last_argument[player] = [cheaper_argument_obj.id()]
@@ -564,9 +551,9 @@ class AgentQueue:
 
             elif self.strategy == ArgStrategy.LEAST_COST_NO_PRIVACY:
                 # Deterministic choice with cheaper arguments first.
-                cheaper_argument_obj = self.bw_framework.argument(verified_argument_ids[0])
+                cheaper_argument_obj = self.alteroceptive_framework.argument(verified_argument_ids[0])
                 for arg_id in verified_argument_ids:
-                    arg_obj = self.bw_framework.argument(arg_id)
+                    arg_obj = self.alteroceptive_framework.argument(arg_id)
                     if arg_obj.privacy_cost < cheaper_argument_obj.privacy_cost:
                         cheaper_argument_obj = arg_obj
                 last_argument[player] = [cheaper_argument_obj.id()]
@@ -583,48 +570,28 @@ class AgentQueue:
                     logging.debug("Agent {} wins!".format(winner.id))
                     logging.debug("Used arguments: {}".format(used_arguments[winner]))
                     break
-                # argument_strength = self.bw_framework.argument_strength
-                # min_strength = min(argument_strength.values())
-                # max_strength = max(argument_strength.values())
-                # if min_strength == max_strength:
-                #     max_strength = 2
-                #     min_strength = 1
-                # strength_per_cost = {}
-                # for arg_id, strength in argument_strength.items():
-                #     privacy_cost = self.bw_framework.argument(arg_id).privacy_cost
-                #     if privacy_cost == 0:
-                #         privacy_cost = 1
-                #     normalised_strength = ((strength - min_strength) / (max_strength - min_strength)) * 20
-                #     strength_per_cost[arg_id] = normalised_strength / privacy_cost
-                # argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
-                # relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
-                # if self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
-                # ranking = argument_desc_rank
-                # pass
-                # else:
-                #     ranking = relative_desc_rank
 
-                ranking = self.bw_framework.least_attacked
+                ranking = self.alteroceptive_framework.least_attacked
                 rebuttal_id = -1
-                bw_argument_id = -1
-                for bw_argument_id in ranking:
-                    if bw_argument_id in affordable_argument_ids:
+                alteroceptive_argument_id = -1
+                for alteroceptive_argument_id in ranking:
+                    if alteroceptive_argument_id in affordable_argument_ids:
                         break
                 # Convert bw id to normal id.
-                rebuttal_id = bw_argument_id
-                rebuttal_obj = self.bw_framework.argument(rebuttal_id)
+                rebuttal_id = alteroceptive_argument_id
+                rebuttal_obj = self.alteroceptive_framework.argument(rebuttal_id)
                 last_argument[player] = [rebuttal_id]
                 logging.debug("Agent {} chose least attacked argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(rebuttal_id)
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
             elif self.strategy == ArgStrategy.LEAST_ATTACKERS_NO_PRIVACY:
-                ranking = self.bw_framework.least_attacked
-                bw_argument_id = -1
-                for bw_argument_id in ranking:
-                    if bw_argument_id in verified_argument_ids:
+                ranking = self.alteroceptive_framework.least_attacked
+                alteroceptive_argument_id = -1
+                for alteroceptive_argument_id in ranking:
+                    if alteroceptive_argument_id in verified_argument_ids:
                         break
-                rebuttal_id = bw_argument_id
+                rebuttal_id = alteroceptive_argument_id
                 last_argument[player] = [rebuttal_id]
                 logging.debug("Agent {} chose least attacked argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(rebuttal_id)
@@ -639,55 +606,35 @@ class AgentQueue:
                     logging.debug("Agent {} wins!".format(winner.id))
                     logging.debug("Used arguments: {}".format(used_arguments[winner]))
                     break
-                # argument_strength = self.bw_framework.argument_strength
-                # min_strength = min(argument_strength.values())
-                # max_strength = max(argument_strength.values())
-                # if min_strength == max_strength:
-                #     max_strength = 2
-                #     min_strength = 1
-                # strength_per_cost = {}
-                # for arg_id, strength in argument_strength.items():
-                #     privacy_cost = self.bw_framework.argument(arg_id).privacy_cost
-                #     if privacy_cost == 0:
-                #         privacy_cost = 1
-                #     normalised_strength = ((strength - min_strength) / (max_strength - min_strength)) * 20
-                #     strength_per_cost[arg_id] = normalised_strength / privacy_cost
-                # argument_desc_rank = sorted(argument_strength, key=argument_strength.get, reverse=True)
-                # relative_desc_rank = sorted(strength_per_cost, key=strength_per_cost.get, reverse=True)
-                # if self.strategy == ArgStrategy.LEAST_ATTACKERS_PRIVATE:
-                # ranking = argument_desc_rank
-                # pass
-                # else:
-                #     ranking = relative_desc_rank
 
-                ranking = self.bw_framework.strongest_attackers
+                ranking = self.alteroceptive_framework.strongest_attackers
                 rebuttal_id = -1
-                bw_argument_id = -1
-                for bw_argument_id in ranking:
-                    if bw_argument_id in affordable_argument_ids:
+                alteroceptive_argument_id = -1
+                for alteroceptive_argument_id in ranking:
+                    if alteroceptive_argument_id in affordable_argument_ids:
                         break
                 # Convert bw id to normal id.
-                rebuttal_id = bw_argument_id
-                rebuttal_obj = self.bw_framework.argument(rebuttal_id)
+                rebuttal_id = alteroceptive_argument_id
+                rebuttal_obj = self.alteroceptive_framework.argument(rebuttal_id)
                 last_argument[player] = [rebuttal_id]
                 logging.debug("Agent {} chose most attacking argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(rebuttal_id)
                 privacy_budget[player] -= rebuttal_obj.privacy_cost
 
             elif self.strategy == ArgStrategy.MOST_ATTACKS_NO_PRIVACY:
-                ranking = self.bw_framework.strongest_attackers
-                bw_argument_id = -1
-                for bw_argument_id in ranking:
-                    if bw_argument_id in verified_argument_ids:
+                ranking = self.alteroceptive_framework.strongest_attackers
+                alteroceptive_argument_id = -1
+                for alteroceptive_argument_id in ranking:
+                    if alteroceptive_argument_id in verified_argument_ids:
                         break
-                rebuttal_id = bw_argument_id
+                rebuttal_id = alteroceptive_argument_id
                 last_argument[player] = [rebuttal_id]
                 logging.debug("Agent {} chose most attacking argument {}".format(player.id, last_argument[player]))
                 used_arguments[player].append(rebuttal_id)
 
             elif self.strategy == ArgStrategy.ALL_ARGS:
                 # Use all arguments as possible.
-                attacked_arguments = set(self.bw_framework.arguments_attacked_by_list(verified_argument_ids))
+                attacked_arguments = set(self.alteroceptive_framework.arguments_attacked_by_list(verified_argument_ids))
                 last_arguments = set(last_argument[opponent])
                 if last_arguments.issubset(attacked_arguments):
                     logging.debug("Agent {} chose arguments {}".format(player.id, verified_argument_ids))

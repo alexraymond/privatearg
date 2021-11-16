@@ -1,7 +1,14 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import scipy.stats
+
+sns.set(style="whitegrid", font_scale=3)
+sns.set_palette("colorblind")
+textfont = {'fontname': 'Linux Libertine'}
+ttfont = {'fontname': 'Inconsolata'}
+plt.rcParams['font.family'] = 'Linux Libertine'
 
 with open('C:/work/projects/privatearg/experiment_data.json') as file:
     data = json.load(file)
@@ -29,7 +36,7 @@ for strategy in strategies:
                 costs[strategy].append(dialogues[pair]['total_privacy_cost'])
 
 
-fig = plt.figure(figsize=(16, 9))
+fig = plt.figure(figsize=(16, 10))
 plot_costs = [costs[strategy] for strategy in strategies]
 
 print("Len: {} {}".format(len(plot_costs[0]), i))
@@ -77,30 +84,42 @@ for strategy in strategies:
 # least_attackers_plot.set_xlim([0, 100])
 
 prob_plot = fig.add_subplot(1, 1, 1)
+lw = 3.0
 x = [x for x in range(100)]
-prob_plot.plot(x, more_than[strategies[0]], linewidth=2.0)
-prob_plot.plot(x, more_than[strategies[1]], linewidth=2.0)
-prob_plot.plot(x, more_than[strategies[2]], linewidth=2.0)
-prob_plot.plot(x, more_than[strategies[3]], linewidth=2.0)
-prob_plot.legend(labels)
-prob_plot.set_title("Probability that a dialogue will cost more than z.")
-prob_plot.set_xlabel("z")
-prob_plot.set_ylabel("Probability")
+sns.lineplot(x=x, y=more_than[strategies[0]], linewidth=lw)
+sns.lineplot(x=x, y=more_than[strategies[1]], linewidth=lw)
+sns.lineplot(x=x, y=more_than[strategies[2]], linewidth=lw)
+sns.lineplot(x=x, y=more_than[strategies[3]], linewidth=lw)
+
+# prob_plot.plot(x, more_than[strategies[0]], linewidth=2.0)
+# prob_plot.plot(x, more_than[strategies[1]], linewidth=2.0)
+# prob_plot.plot(x, more_than[strategies[2]], linewidth=2.0)
+# prob_plot.plot(x, more_than[strategies[3]], linewidth=2.0)
+prob_plot.legend(labels, prop={'family':'Inconsolata', 'size':32})
+prob_plot.set_title("Empirical CDF of Dialogue Costs in Randomised Cultures")
+prob_plot.set_xlabel("Dialogue Cost")
+prob_plot.set_ylabel("Proportion")
 prob_plot.grid()
-plt.savefig('privacy_efficiency.pdf')
 
-for i in range(len(strategies)):
-    for j in range(i+1, len(strategies)):
-        mw_less, p_less = scipy.stats.ttest_ind(plot_costs[i], plot_costs[j], equal_var=False, alternative='less')
 
-        mw_greater, p_greater = scipy.stats.ttest_ind(plot_costs[i], plot_costs[j], equal_var=False, alternative='greater')
 
-        print("MW less {} vs {}. U = {}, p = {}".format(labels[i], labels[j], mw_less, p_less))
-        print("MW greater {} vs {}. U = {}, p = {}".format(labels[i], labels[j], mw_greater, p_greater))
+# for i in range(len(strategies)):
+#     for j in range(i+1, len(strategies)):
+#         mw_less, p_less = scipy.stats.ttest_ind(plot_costs[i], plot_costs[j], equal_var=False, alternative='less')
+#
+#         mw_greater, p_greater = scipy.stats.ttest_ind(plot_costs[i], plot_costs[j], equal_var=False, alternative='greater')
+#
+#         print("MW less {} vs {}. U = {}, p = {}".format(labels[i], labels[j], mw_less, p_less))
+#         print("MW greater {} vs {}. U = {}, p = {}".format(labels[i], labels[j], mw_greater, p_greater))
 
 
 
 # plot.set_xticks(['random', 'least_cost', 'most_attacks', 'least_attackers'])
 
+plt.grid()
+plt.savefig('privacy_efficiency_boat.pdf', bbox_inches='tight',
+                    pad_inches=0)
+plt.savefig('privacy_efficiency_boat.svg', bbox_inches='tight',
+                    pad_inches=0)
 plt.show()
 

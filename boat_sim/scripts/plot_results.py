@@ -62,7 +62,7 @@ load_last = True
 
 class MultiTrialResults:
     def __init__(self, g):
-        self.results_folder = "results/"
+        self.results_folder = "results_g{}/".format(g)
         self.max_g = g
         self.directories = [x[0] for x in os.walk(self.results_folder)]
         self.strategies = ["ArgStrategy.RANDOM_CHOICE_PRIVATE",
@@ -75,14 +75,14 @@ class MultiTrialResults:
         self.display_results = {}
 
         if load_last:
-            with open('final_results_g60.json') as final_results_file:
+            with open('final_results_g{}.json'.format(g)) as final_results_file:
                 self.display_results = json.load(final_results_file)
         else:
             print("Calculating comparisons...")
             self.initialise()
             self.calculate_comparisons()
             self.pre_plot_results()
-            with open('final_results.json', 'w') as final_results_file:
+            with open('new_final_results_g{}.json'.format(g), 'w') as final_results_file:
                 json.dump(self.display_results, final_results_file, indent=4)
 
         self.plot_results()
@@ -92,7 +92,7 @@ class MultiTrialResults:
         # Important so we don't run out of memory. A value of 1 = sample one frame per data point.
         self.trajectory_sample_rate = 20
         for directory in self.directories:
-            directory = directory.replace("results/", "")
+            directory = directory.replace("results_g{}/".format(self.max_g), "")
             if "experiment" not in directory:
                 continue
             self.full_results = {directory: {}}
@@ -423,40 +423,41 @@ class MultiTrialResults:
                             self.display_results[category][strategy].append(
                                 experiment["normal"][strategy][boat_id][category])
 
-                        self.display_results["NTO_pcm"][strategy].append(
-                            experiment["normal_to_objective"][strategy][boat_id]["pcm"])
+                        # self.display_results["NTO_pcm"][strategy].append(
+                        #     experiment["normal_to_objective"][strategy][boat_id]["pcm"])
                         self.display_results["NTO_frechet"][strategy].append(
                             experiment["normal_to_objective"][strategy][boat_id]["frechet"])
-                        self.display_results["NTO_area"][strategy].append(
-                            experiment["normal_to_objective"][strategy][boat_id]["area"])
-                        self.display_results["NTO_curve_length"][strategy].append(
-                            experiment["normal_to_objective"][strategy][boat_id]["curve_length"])
-                        self.display_results["NTO_dtw"][strategy].append(
-                            experiment["normal_to_objective"][strategy][boat_id]["dtw"])
+                        # self.display_results["NTO_area"][strategy].append(
+                        #     experiment["normal_to_objective"][strategy][boat_id]["area"])
+                        # self.display_results["NTO_curve_length"][strategy].append(
+                        #     experiment["normal_to_objective"][strategy][boat_id]["curve_length"])
+                        # self.display_results["NTO_dtw"][strategy].append(
+                        #     experiment["normal_to_objective"][strategy][boat_id]["dtw"])
 
-                        self.display_results["NTS_pcm"][strategy].append(
-                            experiment["normal_to_subjective"][strategy][boat_id]["pcm"])
+                        # self.display_results["NTS_pcm"][strategy].append(
+                        #     experiment["normal_to_subjective"][strategy][boat_id]["pcm"])
                         self.display_results["NTS_frechet"][strategy].append(
                             experiment["normal_to_subjective"][strategy][boat_id]["frechet"])
-                        self.display_results["NTS_area"][strategy].append(
-                            experiment["normal_to_subjective"][strategy][boat_id]["area"])
-                        self.display_results["NTS_curve_length"][strategy].append(
-                            experiment["normal_to_subjective"][strategy][boat_id]["curve_length"])
-                        self.display_results["NTS_dtw"][strategy].append(
-                            experiment["normal_to_subjective"][strategy][boat_id]["dtw"])
+                        # self.display_results["NTS_area"][strategy].append(
+                        #     experiment["normal_to_subjective"][strategy][boat_id]["area"])
+                        # self.display_results["NTS_curve_length"][strategy].append(
+                        #     experiment["normal_to_subjective"][strategy][boat_id]["curve_length"])
+                        # self.display_results["NTS_dtw"][strategy].append(
+                        #     experiment["normal_to_subjective"][strategy][boat_id]["dtw"])
 
-                        self.display_results["STO_pcm"][strategy].append(
-                            experiment["subjective_to_objective"][strategy][boat_id]["pcm"])
+                        # self.display_results["STO_pcm"][strategy].append(
+                        #     experiment["subjective_to_objective"][strategy][boat_id]["pcm"])
                         self.display_results["STO_frechet"][strategy].append(
                             experiment["subjective_to_objective"][strategy][boat_id]["frechet"])
-                        self.display_results["STO_area"][strategy].append(
-                            experiment["subjective_to_objective"][strategy][boat_id]["area"])
-                        self.display_results["STO_curve_length"][strategy].append(
-                            experiment["subjective_to_objective"][strategy][boat_id]["curve_length"])
-                        self.display_results["STO_dtw"][strategy].append(
-                            experiment["subjective_to_objective"][strategy][boat_id]["dtw"])
+                        # self.display_results["STO_area"][strategy].append(
+                        #     experiment["subjective_to_objective"][strategy][boat_id]["area"])
+                        # self.display_results["STO_curve_length"][strategy].append(
+                        #     experiment["subjective_to_objective"][strategy][boat_id]["curve_length"])
+                        # self.display_results["STO_dtw"][strategy].append(
+                        #     experiment["subjective_to_objective"][strategy][boat_id]["dtw"])
 
     def calculate_comparisons(self):
+        distances = []
         for directory in self.final_results.keys():
             print("Comparative data for {}...".format(directory))
             experiment = self.final_results[directory]
@@ -471,6 +472,10 @@ class MultiTrialResults:
                 objective_trajectory[:, 0] = objective_x_data
                 objective_trajectory[:, 1] = objective_y_data
                 for strategy in self.strategies:
+                    distance = {}
+                    distance["strategy"] = strategy
+                    distance["boat_id"] = boat_id
+                    distance["experiment"] = directory
                     normal_x_data = experiment["normal"][strategy][boat_id]["x"]
                     normal_y_data = experiment["normal"][strategy][boat_id]["y"]
                     normal_trajectory = np.zeros((len(normal_x_data), 2))
@@ -486,63 +491,70 @@ class MultiTrialResults:
                     if strategy not in experiment["normal_to_objective"]:
                         experiment["normal_to_objective"][strategy] = {}
                     experiment["normal_to_objective"][strategy][boat_id] = {}
-                    experiment["normal_to_objective"][strategy][boat_id]["pcm"] = sm.pcm(normal_trajectory,
-                                                                                         objective_trajectory)
+                    # experiment["normal_to_objective"][strategy][boat_id]["pcm"] = sm.pcm(normal_trajectory,
+                    #                                                                      objective_trajectory)
                     experiment["normal_to_objective"][strategy][boat_id]["frechet"] = sm.frechet_dist(normal_trajectory,
                                                                                                       objective_trajectory)
-                    experiment["normal_to_objective"][strategy][boat_id]["area"] = sm.area_between_two_curves(
-                        normal_trajectory,
-                        objective_trajectory)
 
-                    experiment["normal_to_objective"][strategy][boat_id]["curve_length"] = sm.curve_length_measure(
-                        normal_trajectory,
-                        objective_trajectory)
-
-                    experiment["normal_to_objective"][strategy][boat_id]["dtw"], _ = sm.dtw(
-                        normal_trajectory,
-                        objective_trajectory)
+                    distance["nto"] = experiment["normal_to_objective"][strategy][boat_id]["frechet"]
+                    # experiment["normal_to_objective"][strategy][boat_id]["area"] = sm.area_between_two_curves(
+                    #     normal_trajectory,
+                    #     objective_trajectory)
+                    #
+                    # experiment["normal_to_objective"][strategy][boat_id]["curve_length"] = sm.curve_length_measure(
+                    #     normal_trajectory,
+                    #     objective_trajectory)
+                    #
+                    # experiment["normal_to_objective"][strategy][boat_id]["dtw"], _ = sm.dtw(
+                    #     normal_trajectory,
+                    #     objective_trajectory)
 
                     if strategy not in experiment["normal_to_subjective"]:
                         experiment["normal_to_subjective"][strategy] = {}
                     experiment["normal_to_subjective"][strategy][boat_id] = {}
 
-                    experiment["normal_to_subjective"][strategy][boat_id]["pcm"] = sm.pcm(normal_trajectory,
-                                                                                          subjective_trajectory)
+                    # experiment["normal_to_subjective"][strategy][boat_id]["pcm"] = sm.pcm(normal_trajectory,
+                    #                                                                       subjective_trajectory)
                     experiment["normal_to_subjective"][strategy][boat_id]["frechet"] = sm.frechet_dist(
                         normal_trajectory,
                         subjective_trajectory)
-                    experiment["normal_to_subjective"][strategy][boat_id]["area"] = sm.area_between_two_curves(
-                        normal_trajectory,
-                        subjective_trajectory)
-
-                    experiment["normal_to_subjective"][strategy][boat_id]["curve_length"] = sm.curve_length_measure(
-                        normal_trajectory,
-                        subjective_trajectory)
-
-                    experiment["normal_to_subjective"][strategy][boat_id]["dtw"], _ = sm.dtw(
-                        normal_trajectory,
-                        subjective_trajectory)
+                    distance["nts"] = experiment["normal_to_subjective"][strategy][boat_id]["frechet"]
+                    # experiment["normal_to_subjective"][strategy][boat_id]["area"] = sm.area_between_two_curves(
+                    #     normal_trajectory,
+                    #     subjective_trajectory)
+                    #
+                    # experiment["normal_to_subjective"][strategy][boat_id]["curve_length"] = sm.curve_length_measure(
+                    #     normal_trajectory,
+                    #     subjective_trajectory)
+                    #
+                    # experiment["normal_to_subjective"][strategy][boat_id]["dtw"], _ = sm.dtw(
+                    #     normal_trajectory,
+                    #     subjective_trajectory)
 
                     if strategy not in experiment["subjective_to_objective"]:
                         experiment["subjective_to_objective"][strategy] = {}
                     experiment["subjective_to_objective"][strategy][boat_id] = {}
 
-                    experiment["subjective_to_objective"][strategy][boat_id]["pcm"] = sm.pcm(subjective_trajectory,
-                                                                                             objective_trajectory)
+                    # experiment["subjective_to_objective"][strategy][boat_id]["pcm"] = sm.pcm(subjective_trajectory,
+                    #                                                                          objective_trajectory)
                     experiment["subjective_to_objective"][strategy][boat_id]["frechet"] = sm.frechet_dist(
                         subjective_trajectory,
                         objective_trajectory)
-                    experiment["subjective_to_objective"][strategy][boat_id]["area"] = sm.area_between_two_curves(
-                        subjective_trajectory,
-                        objective_trajectory)
-
-                    experiment["subjective_to_objective"][strategy][boat_id]["curve_length"] = sm.curve_length_measure(
-                        subjective_trajectory,
-                        objective_trajectory)
-
-                    experiment["subjective_to_objective"][strategy][boat_id]["dtw"], _ = sm.dtw(
-                        subjective_trajectory,
-                        objective_trajectory)
+                    distance["sto"] = experiment["subjective_to_objective"][strategy][boat_id]["frechet"]
+                    # experiment["subjective_to_objective"][strategy][boat_id]["area"] = sm.area_between_two_curves(
+                    #     subjective_trajectory,
+                    #     objective_trajectory)
+                    #
+                    # experiment["subjective_to_objective"][strategy][boat_id]["curve_length"] = sm.curve_length_measure(
+                    #     subjective_trajectory,
+                    #     objective_trajectory)
+                    #
+                    # experiment["subjective_to_objective"][strategy][boat_id]["dtw"], _ = sm.dtw(
+                    #     subjective_trajectory,
+                    #     objective_trajectory)
+                    distances.append(distance)
+        df = pd.DataFrame(distances)
+        df.to_csv('distances.csv')
 
     def get_stats(self, full_result):
         boat_ids = full_result["boats"].keys()
@@ -893,7 +905,7 @@ class ResultsManager:
 
         plt.show()
 
-results = MultiTrialResults(g=50)
+results = MultiTrialResults(g=60)
 
 #
 # def main(argv):

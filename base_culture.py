@@ -1,13 +1,13 @@
 from argument import ArgumentationFramework
 
 class Culture:
+    """
+    Base Culture virtual interface. Meant to be extended with your own culture.
+    """
     def __init__(self):
         self.AF = ArgumentationFramework()
         self.properties = {}
         self.name = None
-
-        # self.create_arguments()
-        # self.define_attacks()
 
     def create_arguments(self):
         pass

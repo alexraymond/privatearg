@@ -1,6 +1,9 @@
 from agent import Agent
 
 class BoatAgent(Agent):
+    """
+    Specialisation of the Agent class that loads a BoatCulture instead.
+    """
     def __init__(self, id, max_privacy_budget=10):
         super().__init__(id, max_privacy_budget)
         self.properties = {}
@@ -22,15 +25,19 @@ class BoatAgent(Agent):
             print("BoatAgent::set_culture: Culture {} has no properties.".format(culture.name))
             return
         for p, v in self.culture_properties().items():
+            # Setting default culture properties and values to the agent.
             self.__setattr__(p, v)
             self.properties[p] = v
         self.sorted_properties = sorted(self.culture_properties().keys())
-        ####
+
 
     def assign_property_value(self, property_, value):
-        # if hasattr(self, property_) is False:
-        #     print("RoadCell::assign_property_value: Property {} not found within road cell.".format(property_))
-        #     return
+        """
+        Assigns a property value to an object attribute.
+        Injecting culture properties such that they become part of the object attributes.
+        :param property_: The property/attribute in question.
+        :param value: The value associated with that property..
+        """
         if type(property_) is not str:
             property_ = str(property_)
         self.__setattr__(property_, value)
